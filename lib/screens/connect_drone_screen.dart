@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 import '../widgets/gradient_text.dart';
 
-class ConnectScreen extends StatefulWidget {
-  const ConnectScreen({Key? key}) : super(key: key);
+class ConnectDroneScreen extends StatefulWidget {
+  const ConnectDroneScreen({Key? key}) : super(key: key);
 
   @override
-  _ConnectScreenState createState() => _ConnectScreenState();
+  _ConnectDroneScreenState createState() => _ConnectDroneScreenState();
 }
 
-class _ConnectScreenState extends State<ConnectScreen> {
+class _ConnectDroneScreenState extends State<ConnectDroneScreen> {
   final List<String> previousConnections = [
     'Drone A - 192.168.1.10',
     'Drone B - 192.168.1.11',
@@ -44,7 +45,11 @@ class _ConnectScreenState extends State<ConnectScreen> {
       // After showing the confirmation icon, navigate to the next screen.
       Future.delayed(Duration(seconds: 1), () {
         if (_targetRoute != null) {
-          Navigator.pushReplacementNamed(context, _targetRoute!, arguments: _arguments);
+          Navigator.pushReplacementNamed(
+            context,
+            _targetRoute!,
+            arguments: _arguments,
+          );
         }
       });
     });
@@ -63,6 +68,16 @@ class _ConnectScreenState extends State<ConnectScreen> {
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 2,
+        // add a logout button in the app bar
+        actions: [
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: () async {
+              await AuthService.instance.logout();
+              Navigator.pushReplacementNamed(context, '/welcome');
+            },
+          ),
+        ],
       ),
       body: Stack(
         children: [
@@ -99,10 +114,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
                 Text(
                   'Select a previous connection or connect to a new drone',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.indigo[900],
-                  ),
+                  style: TextStyle(fontSize: 18, color: Colors.indigo[900]),
                 ),
                 SizedBox(height: 30),
                 // List of previous connections.
@@ -118,17 +130,29 @@ class _ConnectScreenState extends State<ConnectScreen> {
                         margin: const EdgeInsets.symmetric(vertical: 8),
                         elevation: 3,
                         child: ListTile(
-                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
                           title: Text(
                             previousConnections[index],
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                          trailing: Icon(Icons.chevron_right, color: Colors.indigo),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: Colors.indigo,
+                          ),
                           onTap: () {
                             // Use _handleConnection to simulate connecting before navigating.
-                            _handleConnection('/takeoff', arguments: {
-                              'connection': previousConnections[index],
-                            });
+                            _handleConnection(
+                              '/takeoff',
+                              arguments: {
+                                'connection': previousConnections[index],
+                              },
+                            );
                           },
                         ),
                       );
@@ -142,7 +166,9 @@ class _ConnectScreenState extends State<ConnectScreen> {
                     backgroundColor: Colors.blueAccent,
                     foregroundColor: Colors.white,
                     minimumSize: Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     textStyle: TextStyle(fontSize: 18),
                   ),
                   onPressed: () {
@@ -164,9 +190,15 @@ class _ConnectScreenState extends State<ConnectScreen> {
                     children: [
                       !_isConfirmed
                           ? CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            )
-                          : Icon(Icons.check_circle, color: Colors.green, size: 80),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          )
+                          : Icon(
+                            Icons.check_circle,
+                            color: Colors.green,
+                            size: 80,
+                          ),
                       SizedBox(height: 16),
                       Text(
                         !_isConfirmed ? "Connecting" : "Connected",

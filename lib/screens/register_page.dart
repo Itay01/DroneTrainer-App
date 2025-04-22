@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 import '../widgets/gradient_text.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -12,7 +13,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   // Controllers.
   final TextEditingController _fullNameController = TextEditingController();
-  final TextEditingController _emailController    = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
   // Real-time feedback variables.
@@ -28,11 +29,11 @@ class _RegisterPageState extends State<RegisterPage> {
   ];
 
   // Password rule booleans.
-  bool _isPassword8      = false;
-  bool _hasUppercase     = false;
-  bool _hasLowercase     = false;
-  bool _hasNumber        = false;
-  bool _hasSymbol        = false;
+  bool _isPassword10 = false;
+  bool _hasUppercase = false;
+  bool _hasLowercase = false;
+  bool _hasNumber = false;
+  bool _hasSymbol = false;
 
   @override
   void initState() {
@@ -79,11 +80,11 @@ class _RegisterPageState extends State<RegisterPage> {
   void _validatePassword() {
     String password = _passwordController.text;
     setState(() {
-      _isPassword8      = password.length >= 8;
-      _hasUppercase     = password.contains(RegExp(r'[A-Z]'));
-      _hasLowercase     = password.contains(RegExp(r'[a-z]'));
-      _hasNumber        = password.contains(RegExp(r'\d'));
-      _hasSymbol        = password.contains(RegExp(r'[!@#\$&*~]'));
+      _isPassword10 = password.length >= 10;
+      _hasUppercase = password.contains(RegExp(r'[A-Z]'));
+      _hasLowercase = password.contains(RegExp(r'[a-z]'));
+      _hasNumber = password.contains(RegExp(r'\d'));
+      _hasSymbol = password.contains(RegExp(r'[!@#\$&*~]'));
     });
   }
 
@@ -97,25 +98,34 @@ class _RegisterPageState extends State<RegisterPage> {
           size: 16,
         ),
         SizedBox(width: 8),
-        Text(
-          text,
-          style: TextStyle(color: passed ? Colors.green : Colors.red),
-        ),
+        Text(text, style: TextStyle(color: passed ? Colors.green : Colors.red)),
       ],
     );
   }
 
-  void _submitRegistration() {
+  Future<void> _submitRegistration() async {
     if (_formKey.currentState?.validate() == true &&
         _fullNameError == null &&
         _emailError == null &&
-        _isPassword8 &&
+        _isPassword10 &&
         _hasUppercase &&
         _hasLowercase &&
         _hasNumber &&
         _hasSymbol) {
-      // Registration successful, navigate to the Connect screen.
-      Navigator.pushReplacementNamed(context, '/connect');
+      try {
+        await AuthService.instance.register(
+          _fullNameController.text.trim(),
+          _emailController.text.trim(),
+          _passwordController.text,
+        );
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, '/connectDrone');
+      } catch (e) {
+        print(e);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Please fix the errors before registering')),
@@ -158,7 +168,8 @@ class _RegisterPageState extends State<RegisterPage> {
                   labelText: 'Full Name',
                   errorText: _fullNameError,
                   border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   prefixIcon: Icon(Icons.person),
                 ),
                 validator: (value) {
@@ -177,7 +188,8 @@ class _RegisterPageState extends State<RegisterPage> {
                   labelText: 'Email',
                   errorText: _emailError,
                   border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   prefixIcon: Icon(Icons.email),
                 ),
               ),
@@ -189,7 +201,8 @@ class _RegisterPageState extends State<RegisterPage> {
                 decoration: InputDecoration(
                   labelText: 'Password',
                   border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   prefixIcon: Icon(Icons.lock),
                 ),
               ),
@@ -199,15 +212,25 @@ class _RegisterPageState extends State<RegisterPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildPasswordRule(
-                      passed: _isPassword8, text: 'At least 8 characters'),
+                    passed: _isPassword10,
+                    text: 'At least 10 characters',
+                  ),
                   _buildPasswordRule(
-                      passed: _hasUppercase, text: 'At least 1 uppercase letter'),
+                    passed: _hasUppercase,
+                    text: 'At least 1 uppercase letter',
+                  ),
                   _buildPasswordRule(
-                      passed: _hasLowercase, text: 'At least 1 lowercase letter'),
+                    passed: _hasLowercase,
+                    text: 'At least 1 lowercase letter',
+                  ),
                   _buildPasswordRule(
-                      passed: _hasNumber, text: 'At least 1 number'),
+                    passed: _hasNumber,
+                    text: 'At least 1 number',
+                  ),
                   _buildPasswordRule(
-                      passed: _hasSymbol, text: 'At least 1 symbol (!@#\$&*~)'),
+                    passed: _hasSymbol,
+                    text: 'At least 1 symbol (!@#\$&*~)',
+                  ),
                 ],
               ),
               SizedBox(height: 30),
@@ -217,7 +240,8 @@ class _RegisterPageState extends State<RegisterPage> {
                   foregroundColor: Colors.white,
                   minimumSize: Size(double.infinity, 50),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   textStyle: TextStyle(fontSize: 18),
                 ),
                 onPressed: _submitRegistration,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -10,14 +11,18 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    // Navigate to the welcome screen after 3 seconds.
-    Future.delayed(Duration(seconds: 3), () {
-      Navigator.pushReplacementNamed(context, '/welcome');
-    });
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    final ok = await AuthService.instance.init(); // ← new
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(context, ok ? '/connectDrone' : '/welcome');
   }
 
   @override
   Widget build(BuildContext context) {
+    // original gradient UI stays exactly the same
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -31,11 +36,7 @@ class _SplashScreenState extends State<SplashScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.airplanemode_active,
-                size: 120,
-                color: Colors.white,
-              ),
+              Icon(Icons.airplanemode_active, size: 120, color: Colors.white),
               SizedBox(height: 20),
               Text(
                 'Autonomous Drone App',
