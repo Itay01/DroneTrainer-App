@@ -121,7 +121,6 @@ class _RegisterPageState extends State<RegisterPage> {
         if (!mounted) return;
         Navigator.pushReplacementNamed(context, '/connectDrone');
       } catch (e) {
-        print(e);
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(e.toString())));

@@ -1,109 +1,75 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../services/auth_service.dart';
 import '../widgets/gradient_text.dart';
 
 class NewDroneConnectionScreen extends StatefulWidget {
   const NewDroneConnectionScreen({Key? key}) : super(key: key);
 
   @override
-  _NewDroneConnectionScreenState createState() => _NewDroneConnectionScreenState();
+  _NewDroneConnectionScreenState createState() =>
+      _NewDroneConnectionScreenState();
 }
 
 class _NewDroneConnectionScreenState extends State<NewDroneConnectionScreen> {
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final TextEditingController _droneNameController = TextEditingController();
-  final TextEditingController _ipController = TextEditingController();
-  
-  // Scroll controller for the drone list.
-  final ScrollController _droneListController = ScrollController();
+  final _formKey = GlobalKey<FormState>();
+  final _droneNameController = TextEditingController();
+  final _ipController = TextEditingController();
 
-  bool _isConnecting = false;
+  bool _isProcessing = false;
   bool _isConfirmed = false;
 
-  // For discovered drones.
-  final List<Map<String, String>> _discoveredDrones = [];
-  Timer? _discoveryTimer;
-  int _discoveryCount = 0;
-  // Increased tile height to properly fit both name and IP.
-  final double _tileHeight = 72.0;
+  Future<void> _registerDrone() async {
+    if (!_formKey.currentState!.validate()) return;
 
-  @override
-  void initState() {
-    super.initState();
-    // Simulate discovering a new drone every 5 seconds.
-    _discoveryTimer = Timer.periodic(Duration(seconds: 5), (timer) {
-      setState(() {
-        _discoveredDrones.add({
-          'name': 'Discovered Drone ${_discoveryCount + 1}',
-          'ip': '192.168.1.${100 + _discoveryCount}',
-        });
-        _discoveryCount++;
-      });
+    // Hide keyboard
+    FocusScope.of(context).unfocus();
+    SystemChannels.textInput.invokeMethod('TextInput.hide');
+
+    setState(() {
+      _isProcessing = true;
+      _isConfirmed = false;
     });
+
+    final name = _droneNameController.text.trim();
+    final ip = _ipController.text.trim();
+
+    try {
+      // <-- call your new AuthService method
+      await AuthService.instance.registerDrone(name, ip);
+
+      // on success show checkmark briefly
+      setState(() => _isConfirmed = true);
+      await Future.delayed(const Duration(seconds: 1));
+
+      // navigate to takeoff
+      Navigator.pushReplacementNamed(context, '/connectDrone');
+    } catch (e) {
+      // failure: reset and show error
+      setState(() => _isProcessing = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to register drone: $e')));
+    }
   }
 
   @override
   void dispose() {
-    _discoveryTimer?.cancel();
     _droneNameController.dispose();
     _ipController.dispose();
-    _droneListController.dispose();
     super.dispose();
-  }
-
-  void _connect() {
-    if (_formKey.currentState?.validate() == true) {
-      // Stop the drone discovery process.
-      _discoveryTimer?.cancel();
-
-      // Dismiss the keyboard explicitly.
-      FocusScope.of(context).unfocus();
-      SystemChannels.textInput.invokeMethod('TextInput.hide');
-
-      setState(() {
-        _isConnecting = true;
-        _isConfirmed = false;
-      });
-      // Simulate a connection delay.
-      Future.delayed(Duration(seconds: 3), () {
-        setState(() {
-          _isConfirmed = true;
-        });
-        // After showing confirmation, navigate to /takeoff.
-        Future.delayed(Duration(seconds: 1), () {
-          Navigator.pushReplacementNamed(context, '/takeoff', arguments: {
-            'droneName': _droneNameController.text.trim(),
-            'ip': _ipController.text.trim(),
-          });
-        });
-      });
-    }
-  }
-
-  /// When a discovered drone is tapped, auto-fill the form fields.
-  void _selectDiscoveredDrone(Map<String, String> drone) {
-    setState(() {
-      _droneNameController.text = drone['name'] ?? '';
-      _ipController.text = drone['ip'] ?? '';
-    });
-    // Discovery continues even after a drone is selected.
   }
 
   @override
   Widget build(BuildContext context) {
-    final int count = _discoveredDrones.length;
-    // If there are more than 3 items, the container remains 3 tile-heights tall.
-    final bool isScrollable = count > 3;
-    final double containerHeight =
-        count > 0 ? (isScrollable ? 3 * _tileHeight : count * _tileHeight) : 0;
-
     return Scaffold(
       appBar: AppBar(
         title: GradientText(
           text: "New Drone Connection",
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          gradient: LinearGradient(colors: [Colors.indigo, Colors.blueAccent]),
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          gradient: const LinearGradient(
+            colors: [Colors.indigo, Colors.blueAccent],
+          ),
         ),
         centerTitle: true,
         backgroundColor: Colors.white,
@@ -113,113 +79,68 @@ class _NewDroneConnectionScreenState extends State<NewDroneConnectionScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Main content.
           SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(16),
+            child: Form(
+              key: _formKey,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Connection Details Form.
-                  Form(
-                    key: _formKey,
-                    child: Column(
-                      children: [
-                        TextFormField(
-                          controller: _droneNameController,
-                          decoration: InputDecoration(
-                            labelText: 'Drone Name',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            prefixIcon: Icon(Icons.label),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Please enter a drone name';
-                            }
-                            return null;
-                          },
-                        ),
-                        SizedBox(height: 20),
-                        TextFormField(
-                          controller: _ipController,
-                          decoration: InputDecoration(
-                            labelText: 'IP Address',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            prefixIcon: Icon(Icons.router),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Please enter the IP address';
-                            }
-                            final ipRegex = RegExp(r'^(\d{1,3}\.){3}\d{1,3}$');
-                            if (!ipRegex.hasMatch(value.trim())) {
-                              return 'Enter a valid IP address';
-                            }
-                            return null;
-                          },
-                        ),
-                      ],
+                  // Drone Name
+                  TextFormField(
+                    controller: _droneNameController,
+                    decoration: InputDecoration(
+                      labelText: 'Drone Name',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      prefixIcon: const Icon(Icons.label),
                     ),
+                    validator:
+                        (v) =>
+                            v == null || v.trim().isEmpty
+                                ? 'Enter a name'
+                                : null,
                   ),
-                  SizedBox(height: 30),
-                  // Discovered Drones Section.
+                  const SizedBox(height: 20),
+
+                  // IP Address
+                  TextFormField(
+                    controller: _ipController,
+                    decoration: InputDecoration(
+                      labelText: 'IP Address',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      prefixIcon: const Icon(Icons.router),
+                    ),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty)
+                        return 'Enter the IP address';
+                      final ipRegex = RegExp(r'^(\d{1,3}\.){3}\d{1,3}$');
+                      if (!ipRegex.hasMatch(v.trim()))
+                        return 'Invalid IP address';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 30),
+                  // Discovered Drones Section
                   Text(
-                    'Automatically Discovered Drones',
+                    'Automatically Discovering Drones...',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: Colors.indigo[900],
                     ),
                   ),
-                  SizedBox(height: 10),
-                  // Drone List Container.
-                  Container(
-                    height: containerHeight,
-                    padding: EdgeInsets.symmetric(horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 5)],
-                    ),
-                    child: count > 0
-                        ? RawScrollbar(
-                            controller: _droneListController,
-                            thumbVisibility: isScrollable,
-                            thickness: 8,
-                            radius: Radius.circular(8),
-                            // This padding insets the thumb from the top and bottom only.
-                            padding: EdgeInsets.only(top: 12, bottom: 12),
-                            child: ListView.builder(
-                              controller: _droneListController,
-                              shrinkWrap: true,
-                              primary: false,
-                              physics: isScrollable
-                                  ? AlwaysScrollableScrollPhysics()
-                                  : NeverScrollableScrollPhysics(),
-                              itemCount: _discoveredDrones.length,
-                              itemBuilder: (context, index) {
-                                final drone = _discoveredDrones[index];
-                                return ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: Icon(Icons.airplanemode_active, color: Colors.blueAccent),
-                                  title: Text(drone['name']!),
-                                  subtitle: Text(drone['ip']!),
-                                  onTap: () => _selectDiscoveredDrone(drone),
-                                );
-                              },
-                            ),
-                          )
-                        : Center(child: Text("No drones discovered yet")),
-                  ),
-                  // Spinner row below the list.
-                  Padding(
-                    padding: const EdgeInsets.only(top: 15.0),
+                  const SizedBox(height: 10),
+
+                  // For now, empty container: user will see spinner below
+                  Container(height: 0),
+                  const SizedBox(height: 20),
+                  Center(
                     child: Row(
-                      children: [
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
                         SizedBox(
                           width: 20,
                           height: 20,
@@ -230,46 +151,48 @@ class _NewDroneConnectionScreenState extends State<NewDroneConnectionScreen> {
                       ],
                     ),
                   ),
-                  SizedBox(height: 30),
-                  // Connect Button for manual connection.
+
+                  const SizedBox(height: 40),
+
+                  // Register button
                   ElevatedButton(
-                    onPressed: _connect,
+                    onPressed: _isProcessing ? null : _registerDrone,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blueAccent,
                       foregroundColor: Colors.white,
-                      minimumSize: Size(double.infinity, 50),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      textStyle: TextStyle(fontSize: 22),
+                      minimumSize: const Size(double.infinity, 50),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      textStyle: const TextStyle(fontSize: 18),
                     ),
-                    child: Text("Connect"),
+                    child: const Text("Register Drone"),
                   ),
-                  // Extra spacing at the bottom.
-                  SizedBox(height: 20),
+
+                  const SizedBox(height: 20), // Spacer
                 ],
               ),
             ),
           ),
-          // Overlay for connection status.
-          if (_isConnecting)
+
+          // Processing overlay
+          if (_isProcessing)
             Positioned.fill(
               child: Container(
-                color: Colors.black.withOpacity(0.5),
+                color: Colors.black45,
                 child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      !_isConfirmed
-                          ? CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            )
-                          : Icon(Icons.check_circle, color: Colors.green, size: 80),
-                      SizedBox(height: 16),
-                      Text(
-                        !_isConfirmed ? "Connecting" : "Connected",
-                        style: TextStyle(color: Colors.white, fontSize: 18),
-                      ),
-                    ],
-                  ),
+                  child:
+                      _isConfirmed
+                          ? const Icon(
+                            Icons.check_circle,
+                            color: Colors.green,
+                            size: 80,
+                          )
+                          : const CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
                 ),
               ),
             ),

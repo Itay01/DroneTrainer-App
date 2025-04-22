@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 import '../widgets/gradient_text.dart';
 
 class SpeedSelectionScreen extends StatefulWidget {
@@ -10,20 +11,30 @@ class SpeedSelectionScreen extends StatefulWidget {
 
 class _SpeedSelectionScreenState extends State<SpeedSelectionScreen> {
   double _speed = 10.0; // default speed (range: 0 - 20 km/h)
-  late double _height; // height value passed from the previous screen
-  late String _track; // track value passed from the previous screen
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Retrieve the chosen height and track from the route arguments.
-    final args = ModalRoute.of(context)?.settings.arguments;
-    if (args is Map) {
-      _height = args['height'] ?? 2.0;
-      _track = args['track'] ?? 'Unknown Track';
-    } else {
-      _height = 2.0;
-      _track = 'Unknown Track';
+  Future<void> _setSpeed() async {
+    try {
+      // Simulate speed setting process.
+      await AuthService.instance.setSpeed(_speed);
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to set speed: $e')));
+    }
+  }
+
+  Future<void> _initiateFlight() async {
+    try {
+      // Simulate flight initiation process.
+      await _setSpeed();
+      await AuthService.instance.startFly();
+
+      // Navigate to flight control screen.
+      Navigator.pushReplacementNamed(context, '/flightControl');
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Flight initiation failed: $e')));
     }
   }
 
@@ -94,16 +105,8 @@ class _SpeedSelectionScreenState extends State<SpeedSelectionScreen> {
             Spacer(),
             ElevatedButton(
               onPressed: () {
-                // Navigate to flight control, passing track, height, and speed.
-                Navigator.pushReplacementNamed(
-                  context,
-                  '/flightControl',
-                  arguments: {
-                    'track': _track,
-                    'height': _height,
-                    'speed': _speed,
-                  },
-                );
+                _initiateFlight();
+                Navigator.pushReplacementNamed(context, '/flightControl');
               },
               child: Text('Fly!'),
               style: ElevatedButton.styleFrom(

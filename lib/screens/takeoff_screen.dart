@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 import '../widgets/gradient_text.dart';
+import '../widgets/loading.dart';
 
 class TakeoffScreen extends StatefulWidget {
   const TakeoffScreen({Key? key}) : super(key: key);
@@ -9,7 +11,47 @@ class TakeoffScreen extends StatefulWidget {
 }
 
 class _TakeoffScreenState extends State<TakeoffScreen> {
-  double _takeoffHeight = 2.0; // default height (range: 2 - 5 meters)
+  double _takeoffHeight = 4.0; // default height (range: 1 - 10 meters)
+  bool _takeoffInProgress = false; // indicates if takeoff is in progress
+  bool _takeoffComplete = false; // indicates if takeoff is complete
+  String? _droneName;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Retrieve the chosen drone name from the route arguments.
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map) {
+      _droneName = args['droneName'] ?? 'Unknown Drone';
+    } else {
+      _droneName = 'Unknown Drone';
+    }
+  }
+
+  Future<void> _initiateTakeoff() async {
+    setState(() {
+      _takeoffInProgress = true;
+      _takeoffComplete = false;
+    });
+
+    try {
+      // Simulate takeoff process.
+      await AuthService.instance.takeoff(_takeoffHeight);
+      setState(() {
+        _takeoffComplete = true;
+      });
+      await Future.delayed(const Duration(seconds: 1));
+      Navigator.pushReplacementNamed(context, '/trackSelection');
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Takeoff failed: $e')));
+    } finally {
+      setState(() {
+        _takeoffInProgress = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,81 +67,85 @@ class _TakeoffScreenState extends State<TakeoffScreen> {
         elevation: 2,
       ),
       backgroundColor: Colors.grey[100],
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            // Illustration.
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [Colors.indigo, Colors.blueAccent],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 10,
-                    offset: Offset(0, 5),
+      body: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                // Illustration.
+                Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [Colors.indigo, Colors.blueAccent],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 10,
+                        offset: Offset(0, 5),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: Center(
-                child: Icon(
-                  Icons.flight_takeoff,
-                  size: 60,
-                  color: Colors.white,
+                  child: Center(
+                    child: Icon(
+                      Icons.flight_takeoff,
+                      size: 60,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
-              ),
+                SizedBox(height: 30),
+                Text(
+                  'Select takeoff height (meters):',
+                  style: TextStyle(fontSize: 18, color: Colors.indigo[900]),
+                ),
+                SizedBox(height: 20),
+                // Slider for height selection.
+                Slider(
+                  value: _takeoffHeight,
+                  min: 1,
+                  max: 10,
+                  divisions: 18, // increments of 0.5 m
+                  label: _takeoffHeight.toStringAsFixed(1),
+                  activeColor: Colors.indigo,
+                  inactiveColor: Colors.blueAccent.withOpacity(0.3),
+                  onChanged: (value) {
+                    setState(() {
+                      _takeoffHeight = value;
+                    });
+                  },
+                ),
+                Text(
+                  'Height: ${_takeoffHeight.toStringAsFixed(1)} m',
+                  style: TextStyle(fontSize: 18, color: Colors.indigo[900]),
+                ),
+                Spacer(),
+                ElevatedButton(
+                  onPressed: () {
+                    // Start the takeoff process.
+                    _initiateTakeoff();
+                  },
+                  child: Text('Take Off'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent,
+                    foregroundColor: Colors.white,
+                    minimumSize: Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    textStyle: TextStyle(fontSize: 18),
+                  ),
+                ),
+              ],
             ),
-            SizedBox(height: 30),
-            Text(
-              'Select takeoff height (meters):',
-              style: TextStyle(fontSize: 18, color: Colors.indigo[900]),
-            ),
-            SizedBox(height: 20),
-            // Slider for height selection.
-            Slider(
-              value: _takeoffHeight,
-              min: 2,
-              max: 5,
-              divisions: 6, // increments of 0.5 m
-              label: _takeoffHeight.toStringAsFixed(1),
-              activeColor: Colors.indigo,
-              inactiveColor: Colors.blueAccent.withOpacity(0.3),
-              onChanged: (value) {
-                setState(() {
-                  _takeoffHeight = value;
-                });
-              },
-            ),
-            Text(
-              'Height: ${_takeoffHeight.toStringAsFixed(1)} m',
-              style: TextStyle(fontSize: 18, color: Colors.indigo[900]),
-            ),
-            Spacer(),
-            ElevatedButton(
-              onPressed: () {
-                // Navigate to the speed selection screen, passing the chosen height.
-                Navigator.pushReplacementNamed(
-                  context,
-                  '/trackSelection',
-                  arguments: _takeoffHeight,
-                );
-              },
-              child: Text('Next'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
-                foregroundColor: Colors.white,
-                minimumSize: Size(double.infinity, 50),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                textStyle: TextStyle(fontSize: 18),
-              ),
-            ),
-          ],
-        ),
+          ),
+          if (_takeoffInProgress)
+            LoadingWidget(text: 'Taking off...', isConfirmed: _takeoffComplete),
+        ],
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../widgets/gradient_text.dart';
+import '../widgets/loading.dart';
 
 class ConnectDroneScreen extends StatefulWidget {
   const ConnectDroneScreen({Key? key}) : super(key: key);
@@ -10,49 +11,54 @@ class ConnectDroneScreen extends StatefulWidget {
 }
 
 class _ConnectDroneScreenState extends State<ConnectDroneScreen> {
-  final List<String> previousConnections = [
-    'Drone A - 192.168.1.10',
-    'Drone B - 192.168.1.11',
-  ];
-
+  List _droneList = [];
+  bool _isLoading = true;
   bool _isConnecting = false;
   bool _isConfirmed = false;
-  String? _targetRoute;
-  Map<String, dynamic>? _arguments;
 
-  void _handleConnection(String route, {Map<String, dynamic>? arguments}) {
-    // Dismiss any open keyboard
-    FocusScope.of(context).unfocus();
+  @override
+  void initState() {
+    super.initState();
+    _fetchDrones();
+  }
 
-    // If the route is for a new drone connection, navigate immediately.
-    if (route == '/newDroneConnection') {
-      Navigator.pushReplacementNamed(context, route, arguments: arguments);
-      return;
+  Future<void> _fetchDrones() async {
+    try {
+      final drones = await AuthService.instance.getDroneList();
+      setState(() {
+        _droneList = drones;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to load drones: $e')));
     }
+  }
 
-    // For previous connections, simulate connecting with a delay.
+  Future<void> _connectToDrone(String drone) async {
     setState(() {
       _isConnecting = true;
       _isConfirmed = false;
-      _targetRoute = route;
-      _arguments = arguments;
     });
-
-    Future.delayed(Duration(seconds: 3), () {
+    try {
+      await AuthService.instance.connectDrone(drone);
+      setState(() => _isConfirmed = true);
+      await Future.delayed(const Duration(seconds: 1));
+      Navigator.pushReplacementNamed(
+        context,
+        '/takeoff',
+        arguments: {'droneName': drone},
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to connect: $e')));
       setState(() {
-        _isConfirmed = true;
+        _isConnecting = false;
       });
-      // After showing the confirmation icon, navigate to the next screen.
-      Future.delayed(Duration(seconds: 1), () {
-        if (_targetRoute != null) {
-          Navigator.pushReplacementNamed(
-            context,
-            _targetRoute!,
-            arguments: _arguments,
-          );
-        }
-      });
-    });
+    }
   }
 
   @override
@@ -61,17 +67,18 @@ class _ConnectDroneScreenState extends State<ConnectDroneScreen> {
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: GradientText(
-          text: "Connect to Drone",
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          gradient: LinearGradient(colors: [Colors.indigo, Colors.blueAccent]),
+          text: 'Connect to Drone',
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          gradient: const LinearGradient(
+            colors: [Colors.indigo, Colors.blueAccent],
+          ),
         ),
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 2,
-        // add a logout button in the app bar
         actions: [
           IconButton(
-            icon: Icon(Icons.logout),
+            icon: const Icon(Icons.logout),
             onPressed: () async {
               await AuthService.instance.logout();
               Navigator.pushReplacementNamed(context, '/welcome');
@@ -85,13 +92,12 @@ class _ConnectDroneScreenState extends State<ConnectDroneScreen> {
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                // Illustration.
                 Container(
                   width: 120,
                   height: 120,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: LinearGradient(
+                    gradient: const LinearGradient(
                       colors: [Colors.indigo, Colors.blueAccent],
                     ),
                     boxShadow: [
@@ -102,7 +108,7 @@ class _ConnectDroneScreenState extends State<ConnectDroneScreen> {
                       ),
                     ],
                   ),
-                  child: Center(
+                  child: const Center(
                     child: Icon(
                       Icons.wifi_tethering,
                       size: 60,
@@ -110,104 +116,87 @@ class _ConnectDroneScreenState extends State<ConnectDroneScreen> {
                     ),
                   ),
                 ),
-                SizedBox(height: 20),
-                Text(
+                const SizedBox(height: 20),
+                const Text(
                   'Select a previous connection or connect to a new drone',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 18, color: Colors.indigo[900]),
+                  style: TextStyle(fontSize: 18, color: Colors.indigo),
                 ),
-                SizedBox(height: 30),
-                // List of previous connections.
+                const SizedBox(height: 30),
                 Expanded(
-                  child: ListView.builder(
-                    itemCount: previousConnections.length,
-                    itemBuilder: (context, index) {
-                      return Card(
-                        color: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        margin: const EdgeInsets.symmetric(vertical: 8),
-                        elevation: 3,
-                        child: ListTile(
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
+                  child:
+                      _isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : _droneList.isEmpty
+                          ? const Center(
+                            child: Text('No previous drones found.'),
+                          )
+                          : ListView.builder(
+                            itemCount: _droneList.length,
+                            itemBuilder: (context, index) {
+                              final drone = _droneList[index];
+                              return Card(
+                                color: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                margin: const EdgeInsets.symmetric(vertical: 8),
+                                elevation: 3,
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  title: Text(
+                                    drone["drone_name"],
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    drone["drone_ip"],
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                  trailing: const Icon(
+                                    Icons.chevron_right,
+                                    color: Colors.indigo,
+                                  ),
+                                  onTap:
+                                      () =>
+                                          _connectToDrone(drone["drone_name"]),
+                                ),
+                              );
+                            },
                           ),
-                          title: Text(
-                            previousConnections[index],
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          trailing: Icon(
-                            Icons.chevron_right,
-                            color: Colors.indigo,
-                          ),
-                          onTap: () {
-                            // Use _handleConnection to simulate connecting before navigating.
-                            _handleConnection(
-                              '/takeoff',
-                              arguments: {
-                                'connection': previousConnections[index],
-                              },
-                            );
-                          },
-                        ),
-                      );
-                    },
-                  ),
                 ),
-                SizedBox(height: 10),
-                // Button for new drone connection.
+                const SizedBox(height: 10),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blueAccent,
                     foregroundColor: Colors.white,
-                    minimumSize: Size(double.infinity, 50),
+                    minimumSize: const Size(double.infinity, 50),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    textStyle: TextStyle(fontSize: 18),
+                    textStyle: const TextStyle(fontSize: 18),
                   ),
-                  onPressed: () {
-                    _handleConnection('/newDroneConnection');
-                  },
-                  child: Text('Connect to New Drone'),
+                  onPressed:
+                      () => Navigator.pushReplacementNamed(
+                        context,
+                        '/newDroneConnection',
+                      ),
+                  child: const Text('Connect to New Drone'),
                 ),
               ],
             ),
           ),
-          // Overlay for connection status.
+
           if (_isConnecting)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black.withOpacity(0.5),
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      !_isConfirmed
-                          ? CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
-                          )
-                          : Icon(
-                            Icons.check_circle,
-                            color: Colors.green,
-                            size: 80,
-                          ),
-                      SizedBox(height: 16),
-                      Text(
-                        !_isConfirmed ? "Connecting" : "Connected",
-                        style: TextStyle(color: Colors.white, fontSize: 18),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            // use the LoadingWidget from the previous code snippet
+            LoadingWidget(
+              text: 'Connecting to drone...',
+              isConfirmed: _isConfirmed,
             ),
         ],
       ),

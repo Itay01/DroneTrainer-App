@@ -1,6 +1,7 @@
 // lib/services/auth_service.dart
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:web_socket_channel/io.dart';
@@ -194,5 +195,130 @@ class AuthService {
       throw Exception('Not authenticated');
     }
     return _access!;
+  }
+
+  Future<List> getDroneList() async {
+    // 1. send the request
+    await _ws.send({'action': 'list_registered_drones', 'token': token});
+    // 2. get the (decrypted) response
+    final resp = await _ws.stream().first;
+    print(resp);
+    if (resp['error'] != null) {
+      throw Exception(resp['error']);
+    }
+    // server returns {"drones": [{...}]}
+    return resp['drones'] as List;
+  }
+
+  /// Registers a new drone on the server under the current user.
+  Future<void> registerDrone(String name, String ip) async {
+    // 1. send the request
+    await _ws.send({
+      'action': 'register_drone',
+      'drone_name': name,
+      'drone_ip': ip,
+      'token': token,
+    });
+
+    // 2. await the first decrypted response
+    final resp = await _ws.stream().first;
+    print(resp);
+    if (resp['error'] != null) {
+      throw Exception(resp['error']);
+    }
+    // if you expect any data back (e.g. drone_id), you can parse it here.
+  }
+
+  /// Connects to a drone.
+  Future<void> connectDrone(String drone_name) async {
+    // 1. send the request
+    await _ws.send({
+      'action': 'connect',
+      'drone_name': drone_name,
+      'token': token,
+    });
+
+    // 2. await the first decrypted response
+    final resp = await _ws.stream().first;
+    print(resp);
+    if (resp['error'] != null) {
+      throw Exception(resp['error']);
+    }
+    _storage.write(key: 'session_id', value: resp['session_id'] as String);
+  }
+
+  /// Initiates takeoff with the given height.
+  Future<void> takeoff(double height) async {
+    // 1. send the request
+    await _ws.send({'action': 'takeoff', 'height': height, 'token': token});
+
+    // 2. await the first decrypted response
+    final resp = await _ws.stream().first;
+    print(resp);
+    if (resp['error'] != null) {
+      throw Exception(resp['error']);
+    }
+  }
+
+  /// Retrieves the overlay image for the track.
+  Future<Uint8List> captureFrame({bool overlay = false}) async {
+    // 1. send the request
+    await _ws.send({
+      'action': 'capture_frame',
+      'overlay': overlay,
+      'token': token,
+    });
+
+    // 2. await the first decrypted response
+    final resp = await _ws.stream().first;
+    print(resp);
+    if (resp['error'] != null) {
+      throw Exception(resp['error']);
+    }
+    return base64Decode(resp['image'] as String);
+  }
+
+  Future<void> chooseLane(double clickX, double clickY) async {
+    // 1. send the request
+    await _ws.send({
+      'action': 'choose_lane',
+      'click_x': clickX,
+      'click_y': clickY,
+      'token': token,
+    });
+
+    // 2. await the first decrypted response
+    final resp = await _ws.stream().first;
+    print(resp);
+    if (resp['error'] != null) {
+      throw Exception(resp['error']);
+    }
+  }
+
+  Future<void> setSpeed(double speed) async {
+    // convert from km/h to m/s
+    double speed_ms = ((speed * 1000) / 3600);
+
+    // 1. send the request
+    await _ws.send({'action': 'set_speed', 'speed': speed_ms, 'token': token});
+
+    // 2. await the first decrypted response
+    final resp = await _ws.stream().first;
+    print(resp);
+    if (resp['error'] != null) {
+      throw Exception(resp['error']);
+    }
+  }
+
+  Future<void> startFly() async {
+    // 1. send the request
+    await _ws.send({'action': 'start_fly', 'token': token});
+
+    // 2. await the first decrypted response
+    final resp = await _ws.stream().first;
+    print(resp);
+    if (resp['error'] != null) {
+      throw Exception(resp['error']);
+    }
   }
 }
