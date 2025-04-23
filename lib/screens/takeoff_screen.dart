@@ -14,19 +14,6 @@ class _TakeoffScreenState extends State<TakeoffScreen> {
   double _takeoffHeight = 4.0; // default height (range: 1 - 10 meters)
   bool _takeoffInProgress = false; // indicates if takeoff is in progress
   bool _takeoffComplete = false; // indicates if takeoff is complete
-  String? _droneName;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Retrieve the chosen drone name from the route arguments.
-    final args = ModalRoute.of(context)?.settings.arguments;
-    if (args is Map) {
-      _droneName = args['droneName'] ?? 'Unknown Drone';
-    } else {
-      _droneName = 'Unknown Drone';
-    }
-  }
 
   Future<void> _initiateTakeoff() async {
     setState(() {

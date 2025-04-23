@@ -46,11 +46,7 @@ class _ConnectDroneScreenState extends State<ConnectDroneScreen> {
       await AuthService.instance.connectDrone(drone);
       setState(() => _isConfirmed = true);
       await Future.delayed(const Duration(seconds: 1));
-      Navigator.pushReplacementNamed(
-        context,
-        '/takeoff',
-        arguments: {'droneName': drone},
-      );
+      Navigator.pushReplacementNamed(context, '/takeoff');
     } catch (e) {
       ScaffoldMessenger.of(
         context,
