@@ -11,23 +11,23 @@ const _storage = FlutterSecureStorage(); // Android / iOS secure‑store
 
 // ----------  Secure WebSocket  ----------
 class SecureWS {
-  SecureWS._(this._chan, this._aes, this._sharedKey, this._raw);
+  SecureWS._(this._chan, this._aes, this._sharedKey, this._decryptedBroadcast);
+
   final IOWebSocketChannel _chan;
   final AesGcm _aes;
   final SecretKey _sharedKey;
-  final Stream<dynamic> _raw; // broadcast stream
+  final Stream<Map<String, dynamic>> _decryptedBroadcast;
 
-  /// Opens a TLS WebSocket, does DH key‑exchange, and returns a SecureWS.
+  /// Opens a TLS WebSocket, performs DH key exchange, and returns a SecureWS.
   static Future<SecureWS> connect() async {
-    // 1. open raw TLS WS
+    // 1. Open raw TLS WebSocket and make it broadcast-capable
     final chan = IOWebSocketChannel.connect(Uri.parse(_serverUrl));
-    // 1a. convert to broadcast so we can subscribe more than once
     final raw = chan.stream.asBroadcastStream();
 
-    // 2. X25519 DH handshake
+    // 2. X25519 Diffie-Hellman handshake
     final dh = X25519();
-    final priv = await dh.newKeyPair();
-    final pubBytes = await priv.extractPublicKey().then((k) => k.bytes);
+    final privKey = await dh.newKeyPair();
+    final pubBytes = await privKey.extractPublicKey().then((k) => k.bytes);
     chan.sink.add(
       jsonEncode({
         'action': 'dh_key_exchange',
@@ -35,21 +35,43 @@ class SecureWS {
       }),
     );
 
-    // receive server public key
-    final srvMsg = jsonDecode(await raw.first) as Map;
-    final srvPub = SimplePublicKey(
-      base64Decode(srvMsg['server_public_key']),
+    // Receive server's public key
+    final serverMsg = jsonDecode(await raw.first) as Map<String, dynamic>;
+    final serverPubKey = SimplePublicKey(
+      base64Decode(serverMsg['server_public_key'] as String),
       type: KeyPairType.x25519,
     );
     final shared = await dh.sharedSecretKey(
-      keyPair: priv,
-      remotePublicKey: srvPub,
+      keyPair: privKey,
+      remotePublicKey: serverPubKey,
     );
 
-    return SecureWS._(chan, AesGcm.with256bits(), shared, raw);
+    // 3. Set up decryption pipeline
+    final aes = AesGcm.with256bits();
+    final decrypted = raw.asyncMap<Map<String, dynamic>>((rawMsg) async {
+      final data = jsonDecode(rawMsg) as Map<String, dynamic>;
+      // If unencrypted, forward directly
+      if (data['nonce'] == null || data['ciphertext'] == null) {
+        return data;
+      }
+      final nonce = base64Decode(data['nonce'] as String);
+      final combined = base64Decode(data['ciphertext'] as String);
+      const tagLen = 16;
+      final tag = combined.sublist(combined.length - tagLen);
+      final cipherText = combined.sublist(0, combined.length - tagLen);
+
+      final secretBox = SecretBox(cipherText, nonce: nonce, mac: Mac(tag));
+      final plain = await aes.decrypt(secretBox, secretKey: shared);
+      return jsonDecode(utf8.decode(plain)) as Map<String, dynamic>;
+    });
+
+    // 4. Broadcast the decrypted stream so multiple listeners can subscribe
+    final broadcast = decrypted.asBroadcastStream();
+
+    return SecureWS._(chan, aes, shared, broadcast);
   }
 
-  /// Encrypts [obj] with AES‑GCM and sends over the socket.
+  /// Encrypts [obj] with AES-GCM and sends over the socket.
   Future<void> send(Map<String, dynamic> obj) async {
     final nonce = _random(12);
     final secretBox = await _aes.encrypt(
@@ -57,11 +79,7 @@ class SecureWS {
       secretKey: _sharedKey,
       nonce: nonce,
     );
-    // ◀ combine ciphertext + tag
-    final combined = <int>[
-      ...secretBox.cipherText,
-      ...secretBox.mac.bytes, // ← include the 16‑byte tag
-    ];
+    final combined = <int>[...secretBox.cipherText, ...secretBox.mac.bytes];
     _chan.sink.add(
       jsonEncode({
         'nonce': base64Encode(nonce),
@@ -70,37 +88,14 @@ class SecureWS {
     );
   }
 
-  /// Returns a stream of decrypted JSON messages.
-  Stream<Map<String, dynamic>> stream() async* {
-    await for (final rawMsg in _raw) {
-      final data = jsonDecode(rawMsg) as Map<String, dynamic>;
+  /// Returns a broadcast stream of decrypted JSON messages.
+  Stream<Map<String, dynamic>> stream() => _decryptedBroadcast;
 
-      // If there's no nonce/ciphertext, just forward the raw payload
-      if (data['nonce'] == null || data['ciphertext'] == null) {
-        yield data;
-        continue;
-      }
-
-      // decrypt as before
-      final nonce = base64Decode(data['nonce'] as String);
-      final combined = base64Decode(data['ciphertext'] as String);
-      const tagLen = 16;
-      final tag = combined.sublist(combined.length - tagLen);
-      final cipherText = combined.sublist(0, combined.length - tagLen);
-
-      final plain = await _aes.decrypt(
-        SecretBox(cipherText, nonce: nonce, mac: Mac(tag)),
-        secretKey: _sharedKey,
-      );
-
-      yield jsonDecode(utf8.decode(plain)) as Map<String, dynamic>;
-    }
-  }
-
-  List<int> _random(int n) =>
-      List<int>.generate(n, (_) => Random.secure().nextInt(256));
-
+  /// Closes the underlying WebSocket connection.
   void close() => _chan.sink.close();
+
+  static List<int> _random(int length) =>
+      List<int>.generate(length, (_) => Random.secure().nextInt(256));
 }
 
 // ----------  AuthService singleton  ----------
@@ -111,11 +106,13 @@ class AuthService {
   late SecureWS _ws;
   String? _access;
   String? _refresh;
+  String? sessionId;
 
   /// Call on app startup. Returns true if we had valid tokens.
   Future<bool> init() async {
     _access = await _storage.read(key: 'access');
     _refresh = await _storage.read(key: 'refresh');
+    sessionId = await _storage.read(key: 'session_id');
 
     _ws = await SecureWS.connect();
 
@@ -139,7 +136,11 @@ class AuthService {
 
   /// Login with email + password
   Future<void> login(String email, String pw) async {
-    await _ws.send({'action': 'login', 'email': email, 'password': pw});
+    await _ws.send({
+      'action': 'login',
+      'email': email.toLowerCase(),
+      'password': pw,
+    });
     final resp = await _ws.stream().first;
     if (resp['error'] != null) {
       throw Exception(resp['error']);
@@ -152,7 +153,7 @@ class AuthService {
     await _ws.send({
       'action': 'register',
       'username': name,
-      'email': email,
+      'email': email.toLowerCase(),
       'password': pw,
     });
 
@@ -172,7 +173,7 @@ class AuthService {
   /// Clear stored tokens
   Future<void> logout() async {
     await _storage.deleteAll();
-    _access = _refresh = null;
+    _access = _refresh = sessionId = null;
   }
 
   /// Extracts and saves tokens, throwing if any are missing or null.
@@ -310,6 +311,22 @@ class AuthService {
     }
   }
 
+  Future<void> setAltitude(double altitude) async {
+    // 1. send the request
+    await _ws.send({
+      'action': 'set_height',
+      'height': altitude,
+      'token': token,
+    });
+
+    // 2. await the first decrypted response
+    final resp = await _ws.stream().first;
+    print(resp);
+    if (resp['error'] != null) {
+      throw Exception(resp['error']);
+    }
+  }
+
   Future<void> startFly() async {
     // 1. send the request
     await _ws.send({'action': 'start_fly', 'token': token});
@@ -320,5 +337,124 @@ class AuthService {
     if (resp['error'] != null) {
       throw Exception(resp['error']);
     }
+  }
+
+  Future<List<dynamic>> getCurrentSessions() async {
+    // 1. send the request
+    await _ws.send({'action': 'list_current_sessions', 'token': token});
+
+    // 2. await the first decrypted response
+    final resp = await _ws.stream().first;
+    print(resp);
+    if (resp['error'] != null) {
+      throw Exception(resp['error']);
+    }
+    return resp['sessions'] as List;
+  }
+
+  Future<void> stopFly() async {
+    // 1. send the request
+    await _ws.send({'action': 'stop_fly', 'token': token});
+
+    // 2. await the first decrypted response
+    final resp = await _ws.stream().first;
+    print(resp);
+    if (resp['error'] != null) {
+      throw Exception(resp['error']);
+    }
+  }
+
+  Future<void> land() async {
+    // 1. send the request
+    await _ws.send({'action': 'land', 'token': token});
+
+    // 2. await the first decrypted response
+    final resp = await _ws.stream().first;
+    print(resp);
+    if (resp['error'] != null) {
+      throw Exception(resp['error']);
+    }
+  }
+
+  Future<void> disconnectDrone() async {
+    // 1. send the request
+    await _ws.send({'action': 'disconnect', 'token': token});
+
+    // 2. await the first decrypted response
+    final resp = await _ws.stream().first;
+    print(resp);
+    if (resp['error'] != null) {
+      throw Exception(resp['error']);
+    }
+
+    // 3. clear session ID
+    await _storage.delete(key: 'session_id');
+  }
+
+  /// Subscribe to live telemetry; fires every time the server pushes a telemetry event.
+  Stream<Map<String, dynamic>> subscribeTelemetry() {
+    return Stream<Map<String, dynamic>>.multi((controller) async {
+      // 1) send the subscribe request & wait for it to flush
+      try {
+        await _ws.send({'action': 'subscribe_telemetry', 'token': token});
+        print('📡 [AuthService] subscribe_telemetry sent');
+      } catch (e, st) {
+        controller.addError(e, st);
+        return;
+      }
+
+      // 2) now listen for only telemetry events
+      final sub = _ws
+          .stream()
+          .where((msg) => msg['event'] == 'telemetry')
+          .listen(
+            (msg) {
+              controller.add(msg);
+            },
+            onError: controller.addError,
+            onDone: controller.close,
+          );
+
+      // cancel when the controller is cancelled
+      controller.onCancel = sub.cancel;
+    });
+  }
+
+  Future<void> unsubscribeTelemetry() async {
+    _ws.send({'action': 'unsubscribe_telemetry', 'token': token});
+  }
+
+  /// Subscribe to live video; each event is a base64‐encoded JPEG.
+  Stream<List<Uint8List>> subscribeVideo({bool overlay = false}) {
+    return Stream<List<Uint8List>>.multi((controller) async {
+      // send subscribe request (include overlay flag if you want)
+      await _ws.send({
+        'action': 'subscribe_video',
+        'overlay': overlay,
+        'token': token,
+      });
+      print('📹 [AuthService] subscribe_video sent');
+
+      // listen for only video_frame events
+      final sub = _ws
+          .stream()
+          .where((msg) => msg['event'] == 'video_frame')
+          .listen(
+            (msg) {
+              final b64 = msg['data']["frame"] as String;
+              final b64_front = msg['data']["front_frame"] as String;
+              controller.add([base64Decode(b64), base64Decode(b64_front)]);
+            },
+            onError: controller.addError,
+            onDone: controller.close,
+          );
+
+      controller.onCancel = sub.cancel;
+    });
+  }
+
+  /// Unsubscribes from the video stream.
+  Future<void> unsubscribeVideo() async {
+    await _ws.send({'action': 'unsubscribe_video', 'token': token});
   }
 }

@@ -15,10 +15,17 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _fullNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
+
+  // Obscure toggles.
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   // Real-time feedback variables.
   String? _fullNameError;
   String? _emailError;
+  String? _confirmPasswordError;
 
   // List of popular email domains.
   final List<String> popularDomains = [
@@ -29,7 +36,7 @@ class _RegisterPageState extends State<RegisterPage> {
   ];
 
   // Password rule booleans.
-  bool _isPassword10 = false;
+  bool _isPassword8 = false;
   bool _hasUppercase = false;
   bool _hasLowercase = false;
   bool _hasNumber = false;
@@ -41,6 +48,7 @@ class _RegisterPageState extends State<RegisterPage> {
     _fullNameController.addListener(_validateFullName);
     _emailController.addListener(_validateEmail);
     _passwordController.addListener(_validatePassword);
+    _confirmPasswordController.addListener(_validateConfirmPassword);
   }
 
   void _validateFullName() {
@@ -80,11 +88,20 @@ class _RegisterPageState extends State<RegisterPage> {
   void _validatePassword() {
     String password = _passwordController.text;
     setState(() {
-      _isPassword10 = password.length >= 10;
+      _isPassword8 = password.length >= 8;
       _hasUppercase = password.contains(RegExp(r'[A-Z]'));
       _hasLowercase = password.contains(RegExp(r'[a-z]'));
       _hasNumber = password.contains(RegExp(r'\d'));
-      _hasSymbol = password.contains(RegExp(r'[!@#\$&*~]'));
+      _hasSymbol = password.contains(RegExp(r'[!@#\\$&*~]'));
+    });
+  }
+
+  void _validateConfirmPassword() {
+    setState(() {
+      _confirmPasswordError =
+          _confirmPasswordController.text != _passwordController.text
+              ? 'Passwords do not match'
+              : null;
     });
   }
 
@@ -107,11 +124,12 @@ class _RegisterPageState extends State<RegisterPage> {
     if (_formKey.currentState?.validate() == true &&
         _fullNameError == null &&
         _emailError == null &&
-        _isPassword10 &&
+        _isPassword8 &&
         _hasUppercase &&
         _hasLowercase &&
         _hasNumber &&
-        _hasSymbol) {
+        _hasSymbol &&
+        _confirmPasswordError == null) {
       try {
         await AuthService.instance.register(
           _fullNameController.text.trim(),
@@ -137,6 +155,7 @@ class _RegisterPageState extends State<RegisterPage> {
     _fullNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -196,14 +215,62 @@ class _RegisterPageState extends State<RegisterPage> {
               // Password field.
               TextFormField(
                 controller: _passwordController,
-                obscureText: true,
+                obscureText: _obscurePassword,
                 decoration: InputDecoration(
                   labelText: 'Password',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                   prefixIcon: Icon(Icons.lock),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                    ),
+                    onPressed:
+                        () => setState(() {
+                          _obscurePassword = !_obscurePassword;
+                        }),
+                  ),
                 ),
+                validator: (value) {
+                  if (value == null || value.isEmpty)
+                    return 'Please enter a password';
+                  return null;
+                },
+              ),
+              SizedBox(height: 20),
+              // Confirm Password field.
+              TextFormField(
+                controller: _confirmPasswordController,
+                obscureText: _obscureConfirmPassword,
+                decoration: InputDecoration(
+                  labelText: 'Confirm Password',
+                  errorText: _confirmPasswordError,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  prefixIcon: Icon(Icons.lock),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscureConfirmPassword
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                    ),
+                    onPressed:
+                        () => setState(() {
+                          _obscureConfirmPassword = !_obscureConfirmPassword;
+                        }),
+                  ),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty)
+                    return 'Please confirm your password';
+                  if (value != _passwordController.text)
+                    return 'Passwords do not match';
+                  return null;
+                },
               ),
               SizedBox(height: 10),
               // Real-time password rules.
@@ -211,8 +278,8 @@ class _RegisterPageState extends State<RegisterPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildPasswordRule(
-                    passed: _isPassword10,
-                    text: 'At least 10 characters',
+                    passed: _isPassword8,
+                    text: 'At least 8 characters',
                   ),
                   _buildPasswordRule(
                     passed: _hasUppercase,

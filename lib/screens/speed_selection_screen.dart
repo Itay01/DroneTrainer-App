@@ -30,7 +30,7 @@ class _SpeedSelectionScreenState extends State<SpeedSelectionScreen> {
       await AuthService.instance.startFly();
 
       // Navigate to flight control screen.
-      Navigator.pushReplacementNamed(context, '/flightControl');
+      Navigator.pushNamed(context, '/flightControl');
     } catch (e) {
       ScaffoldMessenger.of(
         context,

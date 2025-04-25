@@ -2,14 +2,27 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../widgets/gradient_text.dart';
 
-class LoginPage extends StatelessWidget {
+class LoginPage extends StatefulWidget {
+  const LoginPage({Key? key}) : super(key: key);
+  @override
+  _LoginPageState createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final _emailCtrl = TextEditingController();
-  final _pwCtrl = TextEditingController();
+  final TextEditingController _emailCtrl = TextEditingController();
+  final TextEditingController _pwCtrl = TextEditingController();
 
-  LoginPage({Key? key}) : super(key: key);
+  bool _obscurePassword = true;
 
-  void _submitLogin(BuildContext context) async {
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _pwCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submitLogin() async {
     if (_formKey.currentState?.validate() != true) return;
 
     final email = _emailCtrl.text.trim();
@@ -17,7 +30,7 @@ class LoginPage extends StatelessWidget {
 
     try {
       await AuthService.instance.login(email, pw);
-      if (!context.mounted) return;
+      if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/connectDrone');
     } catch (e) {
       ScaffoldMessenger.of(
@@ -48,6 +61,7 @@ class LoginPage extends StatelessWidget {
             children: [
               // Email field.
               TextFormField(
+                controller: _emailCtrl,
                 decoration: InputDecoration(
                   labelText: 'Email',
                   border: OutlineInputBorder(
@@ -56,33 +70,45 @@ class LoginPage extends StatelessWidget {
                   prefixIcon: Icon(Icons.email),
                 ),
                 validator: (value) {
-                  if (value == null || value.isEmpty)
+                  if (value == null || value.isEmpty) {
                     return 'Please enter your email';
+                  }
                   final emailRegex = RegExp(
                     r'^[\w\.-]+@([\w-]+\.)+[\w-]{2,4}$',
                   );
                   if (!emailRegex.hasMatch(value)) return 'Invalid email';
                   return null;
                 },
-                controller: _emailCtrl,
+                keyboardType: TextInputType.emailAddress,
               ),
               SizedBox(height: 20),
-              // Password field.
+              // Password field with show/hide toggle.
               TextFormField(
-                obscureText: true,
+                controller: _pwCtrl,
+                obscureText: _obscurePassword,
                 decoration: InputDecoration(
                   labelText: 'Password',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                   prefixIcon: Icon(Icons.lock),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                    ),
+                    onPressed:
+                        () => setState(() {
+                          _obscurePassword = !_obscurePassword;
+                        }),
+                  ),
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty)
                     return 'Please enter your password';
                   return null;
                 },
-                controller: _pwCtrl,
               ),
               SizedBox(height: 30),
               ElevatedButton(
@@ -95,7 +121,7 @@ class LoginPage extends StatelessWidget {
                   ),
                   textStyle: TextStyle(fontSize: 18),
                 ),
-                onPressed: () => _submitLogin(context),
+                onPressed: _submitLogin,
                 child: Text("Login"),
               ),
             ],

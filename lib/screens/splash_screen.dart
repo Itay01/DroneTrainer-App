@@ -17,7 +17,26 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _bootstrap() async {
     final ok = await AuthService.instance.init(); // ← new
     if (!mounted) return;
-    Navigator.pushReplacementNamed(context, ok ? '/connectDrone' : '/welcome');
+    if (ok) {
+      final sessions = await AuthService.instance.getCurrentSessions();
+      if (sessions.isNotEmpty) {
+        bool sessionFound = false;
+        for (final session in sessions) {
+          if (session["session_id"] == AuthService.instance.sessionId) {
+            sessionFound = true;
+          }
+        }
+        if (sessionFound) {
+          Navigator.pushReplacementNamed(context, '/flightControl');
+        } else {
+          Navigator.pushReplacementNamed(context, '/connectDrone');
+        }
+      } else {
+        Navigator.pushReplacementNamed(context, '/connectDrone');
+      }
+    } else {
+      Navigator.pushReplacementNamed(context, '/welcome');
+    }
   }
 
   @override
