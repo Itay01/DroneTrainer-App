@@ -4,7 +4,7 @@ import '../widgets/gradient_text.dart';
 import '../widgets/loading.dart';
 
 class ConnectDroneScreen extends StatefulWidget {
-  const ConnectDroneScreen({Key? key}) : super(key: key);
+  const ConnectDroneScreen({super.key});
 
   @override
   _ConnectDroneScreenState createState() => _ConnectDroneScreenState();

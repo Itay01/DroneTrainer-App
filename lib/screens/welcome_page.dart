@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/gradient_text.dart';
 
 class WelcomePage extends StatelessWidget {
-  const WelcomePage({Key? key}) : super(key: key);
+  const WelcomePage({super.key});
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -71,7 +71,8 @@ class WelcomePage extends StatelessWidget {
                       foregroundColor: Colors.white,
                       minimumSize: Size(double.infinity, 50),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                       textStyle: TextStyle(fontSize: 18),
                     ),
                     onPressed: () {
@@ -86,7 +87,8 @@ class WelcomePage extends StatelessWidget {
                       foregroundColor: Colors.white,
                       minimumSize: Size(double.infinity, 50),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                       textStyle: TextStyle(fontSize: 18),
                     ),
                     onPressed: () {

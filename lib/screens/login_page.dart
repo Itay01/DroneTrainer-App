@@ -3,7 +3,7 @@ import '../services/auth_service.dart';
 import '../widgets/gradient_text.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({Key? key}) : super(key: key);
+  const LoginPage({super.key});
   @override
   _LoginPageState createState() => _LoginPageState();
 }
@@ -105,8 +105,9 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
                 validator: (value) {
-                  if (value == null || value.isEmpty)
+                  if (value == null || value.isEmpty) {
                     return 'Please enter your password';
+                  }
                   return null;
                 },
               ),

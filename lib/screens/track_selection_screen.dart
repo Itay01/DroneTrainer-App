@@ -6,7 +6,7 @@ import '../services/auth_service.dart';
 import '../widgets/gradient_text.dart';
 
 class TrackSelectionScreen extends StatefulWidget {
-  const TrackSelectionScreen({Key? key}) : super(key: key);
+  const TrackSelectionScreen({super.key});
 
   @override
   _TrackSelectionScreenState createState() => _TrackSelectionScreenState();
@@ -54,8 +54,9 @@ class _TrackSelectionScreenState extends State<TrackSelectionScreen> {
   }
 
   void _onImageTap(TapDownDetails details) {
-    if (_overlayImage == null || _imgWidth == null || _imgHeight == null)
+    if (_overlayImage == null || _imgWidth == null || _imgHeight == null) {
       return;
+    }
     final box = _imageKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return;
     final local = box.globalToLocal(details.globalPosition);

@@ -3,7 +3,7 @@ import '../services/auth_service.dart';
 import '../widgets/gradient_text.dart';
 
 class RegisterPage extends StatefulWidget {
-  const RegisterPage({Key? key}) : super(key: key);
+  const RegisterPage({super.key});
   @override
   _RegisterPageState createState() => _RegisterPageState();
 }
@@ -191,10 +191,12 @@ class _RegisterPageState extends State<RegisterPage> {
                   prefixIcon: Icon(Icons.person),
                 ),
                 validator: (value) {
-                  if (value == null || value.trim().isEmpty)
+                  if (value == null || value.trim().isEmpty) {
                     return 'Please enter your full name';
-                  if (value.trim().split(' ').length < 2)
+                  }
+                  if (value.trim().split(' ').length < 2) {
                     return 'Enter first and last name';
+                  }
                   return null;
                 },
               ),
@@ -235,8 +237,9 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                 ),
                 validator: (value) {
-                  if (value == null || value.isEmpty)
+                  if (value == null || value.isEmpty) {
                     return 'Please enter a password';
+                  }
                   return null;
                 },
               ),
@@ -265,10 +268,12 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                 ),
                 validator: (value) {
-                  if (value == null || value.isEmpty)
+                  if (value == null || value.isEmpty) {
                     return 'Please confirm your password';
-                  if (value != _passwordController.text)
+                  }
+                  if (value != _passwordController.text) {
                     return 'Passwords do not match';
+                  }
                   return null;
                 },
               ),

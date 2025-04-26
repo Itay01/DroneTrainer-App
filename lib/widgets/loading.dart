@@ -4,8 +4,11 @@ class LoadingWidget extends StatelessWidget {
   final String text;
   final bool isConfirmed;
 
-  const LoadingWidget({Key? key, required this.text, this.isConfirmed = false})
-    : super(key: key);
+  const LoadingWidget({
+    super.key,
+    required this.text,
+    this.isConfirmed = false,
+  });
 
   @override
   Widget build(BuildContext context) {

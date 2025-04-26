@@ -5,7 +5,7 @@ import '../services/auth_service.dart';
 import '../widgets/gradient_text.dart';
 
 class NewDroneConnectionScreen extends StatefulWidget {
-  const NewDroneConnectionScreen({Key? key}) : super(key: key);
+  const NewDroneConnectionScreen({super.key});
 
   @override
   _NewDroneConnectionScreenState createState() =>
@@ -95,10 +95,10 @@ class _NewDroneConnectionScreenState extends State<NewDroneConnectionScreen> {
   @override
   Widget build(BuildContext context) {
     final int count = _discoveredDrones.length;
-    final double _tileHeight = 72.0;
+    final double tileHeight = 72.0;
     final bool isScrollable = count > 3;
     final double containerHeight =
-        count > 0 ? (isScrollable ? 3 * _tileHeight : count * _tileHeight) : 0;
+        count > 0 ? (isScrollable ? 3 * tileHeight : count * tileHeight) : 0;
 
     return Scaffold(
       appBar: AppBar(

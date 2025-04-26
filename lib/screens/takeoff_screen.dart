@@ -4,7 +4,7 @@ import '../widgets/gradient_text.dart';
 import '../widgets/loading.dart';
 
 class TakeoffScreen extends StatefulWidget {
-  const TakeoffScreen({Key? key}) : super(key: key);
+  const TakeoffScreen({super.key});
 
   @override
   _TakeoffScreenState createState() => _TakeoffScreenState();
@@ -116,7 +116,6 @@ class _TakeoffScreenState extends State<TakeoffScreen> {
                     // Start the takeoff process.
                     _initiateTakeoff();
                   },
-                  child: Text('Take Off'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blueAccent,
                     foregroundColor: Colors.white,
@@ -126,6 +125,7 @@ class _TakeoffScreenState extends State<TakeoffScreen> {
                     ),
                     textStyle: TextStyle(fontSize: 18),
                   ),
+                  child: Text('Take Off'),
                 ),
               ],
             ),

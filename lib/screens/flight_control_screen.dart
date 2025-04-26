@@ -8,7 +8,7 @@ import '../widgets/gradient_text.dart';
 enum FlightState { flying, stopped, landed, landing }
 
 class FlightControlScreen extends StatefulWidget {
-  const FlightControlScreen({Key? key}) : super(key: key);
+  const FlightControlScreen({super.key});
 
   @override
   _FlightControlScreenState createState() => _FlightControlScreenState();
@@ -86,11 +86,11 @@ class _FlightControlScreenState extends State<FlightControlScreen> {
   double parseForwardSpeed(Map<String, dynamic> telemetry) {
     // Unpack velocity
     final velData = telemetry['velocity'] as Map<String, dynamic>;
-    num speed_x = velData['x_val'] as num;
-    num speed_y = velData['y_val'] as num;
+    num speedX = velData['x_val'] as num;
+    num speedY = velData['y_val'] as num;
 
     // Calculate speed using Pythagorean theorem
-    num speed = sqrt(pow(speed_x, 2) + pow(speed_y, 2));
+    num speed = sqrt(pow(speedX, 2) + pow(speedY, 2));
     double speedMs = speed.toDouble();
 
     // Return km/h

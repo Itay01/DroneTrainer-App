@@ -26,6 +26,8 @@ void main() {
 }
 
 class DroneControlApp extends StatelessWidget {
+  const DroneControlApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(

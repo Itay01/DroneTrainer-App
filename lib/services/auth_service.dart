@@ -231,11 +231,11 @@ class AuthService {
   }
 
   /// Connects to a drone.
-  Future<void> connectDrone(String drone_name) async {
+  Future<void> connectDrone(String droneName) async {
     // 1. send the request
     await _ws.send({
       'action': 'connect',
-      'drone_name': drone_name,
+      'drone_name': droneName,
       'token': token,
     });
 
@@ -298,10 +298,10 @@ class AuthService {
 
   Future<void> setSpeed(double speed) async {
     // convert from km/h to m/s
-    double speed_ms = ((speed * 1000) / 3600);
+    double speedMs = ((speed * 1000) / 3600);
 
     // 1. send the request
-    await _ws.send({'action': 'set_speed', 'speed': speed_ms, 'token': token});
+    await _ws.send({'action': 'set_speed', 'speed': speedMs, 'token': token});
 
     // 2. await the first decrypted response
     final resp = await _ws.stream().first;
@@ -442,8 +442,8 @@ class AuthService {
           .listen(
             (msg) {
               final b64 = msg['data']["frame"] as String;
-              final b64_front = msg['data']["front_frame"] as String;
-              controller.add([base64Decode(b64), base64Decode(b64_front)]);
+              final b64Front = msg['data']["front_frame"] as String;
+              controller.add([base64Decode(b64), base64Decode(b64Front)]);
             },
             onError: controller.addError,
             onDone: controller.close,

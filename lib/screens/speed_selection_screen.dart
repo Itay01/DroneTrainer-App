@@ -3,7 +3,7 @@ import '../services/auth_service.dart';
 import '../widgets/gradient_text.dart';
 
 class SpeedSelectionScreen extends StatefulWidget {
-  const SpeedSelectionScreen({Key? key}) : super(key: key);
+  const SpeedSelectionScreen({super.key});
 
   @override
   _SpeedSelectionScreenState createState() => _SpeedSelectionScreenState();
@@ -108,7 +108,6 @@ class _SpeedSelectionScreenState extends State<SpeedSelectionScreen> {
                 _initiateFlight();
                 Navigator.pushReplacementNamed(context, '/flightControl');
               },
-              child: Text('Fly!'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blueAccent,
                 foregroundColor: Colors.white,
@@ -118,6 +117,7 @@ class _SpeedSelectionScreenState extends State<SpeedSelectionScreen> {
                 ),
                 textStyle: TextStyle(fontSize: 18),
               ),
+              child: Text('Fly!'),
             ),
           ],
         ),
