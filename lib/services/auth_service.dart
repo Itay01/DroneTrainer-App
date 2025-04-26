@@ -201,11 +201,9 @@ class AuthService {
   Future<List> getDroneList() async {
     // 1. send the request
     await _ws.send({'action': 'list_registered_drones', 'token': token});
-    print("Sent list_registered_drones request");
     // 2. get the (decrypted) response
     final resp = await _ws.stream().first;
-    print("BBBBB");
-    print("CCCC" + jsonEncode(resp));
+    print(resp);
     if (resp['error'] != null) {
       throw Exception(resp['error']);
     }
@@ -374,7 +372,7 @@ class AuthService {
 
     // 2. await the first decrypted response
     final resp = await _ws.stream().first;
-    print("FFFFF" + jsonEncode(resp));
+    print(resp);
     if (resp['error'] != null) {
       throw Exception(resp['error']);
     }
@@ -473,8 +471,7 @@ class AuthService {
 
     // 2. await the first decrypted response
     final resp = await _ws.stream().first;
-    print("DDDDD");
-    print("EEEE" + jsonEncode(resp));
+    print(resp);
     if (resp['error'] != null) {
       throw Exception(resp['error']);
     }

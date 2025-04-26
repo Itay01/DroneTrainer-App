@@ -67,8 +67,6 @@ class NavigationHelper {
               AuthService.instance.sessionId!,
             );
           }
-          Future.delayed(const Duration(seconds: 1));
-          print("AAAA");
           Navigator.pushNamedAndRemoveUntil(
             ctx,
             '/connectDrone',

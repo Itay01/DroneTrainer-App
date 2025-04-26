@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'package:drone_trainer/navigation_helper.dart';
 import 'package:drone_trainer/services/auth_service.dart';
+import 'package:drone_trainer/widgets/loading.dart';
 import 'package:flutter/material.dart';
 import '../widgets/gradient_text.dart';
 
@@ -35,6 +36,7 @@ class _FlightControlScreenState extends State<FlightControlScreen> {
 
   // Flight state
   FlightState _flightState = FlightState.flying;
+  bool _isLanding = false;
 
   // Subscription for live telemetry
   StreamSubscription<Map<String, dynamic>>? _telemetrySub;
@@ -183,7 +185,10 @@ class _FlightControlScreenState extends State<FlightControlScreen> {
   }
 
   Future<void> _landFlight() async {
-    setState(() => _flightState = FlightState.landing);
+    setState(() {
+      _flightState = FlightState.landing;
+      _isLanding = true;
+    });
     try {
       await AuthService.instance.land();
       setState(() {
@@ -192,6 +197,7 @@ class _FlightControlScreenState extends State<FlightControlScreen> {
           setState(() {
             _flightHeight = 0.0;
             _currentAltitude = 0.0;
+            _isLanding = false;
           });
         });
       });
@@ -579,30 +585,10 @@ class _FlightControlScreenState extends State<FlightControlScreen> {
             ),
 
             // 3) Landing overlay
-            if (_flightState == FlightState.landing)
-              Positioned.fill(
-                child: Container(
-                  color: Colors.black.withOpacity(0.6),
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation(Colors.white),
-                        ),
-                        SizedBox(height: 16),
-                        Text(
-                          'Landing…',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+            if (_flightState == FlightState.landing || _isLanding)
+              LoadingWidget(
+                text: 'Landing...',
+                isConfirmed: _flightState == FlightState.landed,
               ),
           ],
         ),
