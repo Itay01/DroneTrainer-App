@@ -20,13 +20,25 @@ class _SplashScreenState extends State<SplashScreen> {
     if (ok) {
       final sessions = await AuthService.instance.getCurrentSessions();
       if (sessions.isNotEmpty) {
-        bool sessionFound = false;
+        bool continueSession = false;
         for (final session in sessions) {
           if (session["session_id"] == AuthService.instance.sessionId) {
-            sessionFound = true;
+            if (session["status"] == "flying") {
+              continueSession = true;
+            } else {
+              continueSession = false;
+              try {
+                await AuthService.instance.endSession(session["session_id"]);
+              } catch (e) {
+                // Handle any errors that occur during session ending
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to end previous session: $e')),
+                );
+              }
+            }
           }
         }
-        if (sessionFound) {
+        if (continueSession) {
           Navigator.pushReplacementNamed(context, '/flightControl');
         } else {
           Navigator.pushReplacementNamed(context, '/connectDrone');

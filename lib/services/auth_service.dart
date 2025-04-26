@@ -457,4 +457,21 @@ class AuthService {
   Future<void> unsubscribeVideo() async {
     await _ws.send({'action': 'unsubscribe_video', 'token': token});
   }
+
+  /// Ends the session with the given ID.
+  Future<void> endSession(String sessionId) async {
+    // 1. send the request
+    await _ws.send({
+      'action': 'end_session',
+      'session_id': sessionId,
+      'token': token,
+    });
+
+    // 2. await the first decrypted response
+    final resp = await _ws.stream().first;
+    print(resp);
+    if (resp['error'] != null) {
+      throw Exception(resp['error']);
+    }
+  }
 }
