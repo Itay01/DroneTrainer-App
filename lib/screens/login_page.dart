@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../widgets/gradient_text.dart';
+import '../navigation_helper.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -41,91 +42,98 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: GradientText(
-          text: "Login",
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          gradient: LinearGradient(colors: [Colors.indigo, Colors.blueAccent]),
+    return WillPopScope(
+      onWillPop: () => NavigationHelper.onBackPressed(context, NavScreen.login),
+      child: Scaffold(
+        appBar: AppBar(
+          leading: NavigationHelper.buildBackArrow(context, NavScreen.login),
+          title: GradientText(
+            text: "Login",
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            gradient: LinearGradient(
+              colors: [Colors.indigo, Colors.blueAccent],
+            ),
+          ),
+          centerTitle: true,
+          backgroundColor: Colors.white,
+          elevation: 2,
+          // no logout button on login page
         ),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 2,
-      ),
-      backgroundColor: Colors.grey[100],
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              // Email field.
-              TextFormField(
-                controller: _emailCtrl,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  prefixIcon: Icon(Icons.email),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your email';
-                  }
-                  final emailRegex = RegExp(
-                    r'^[\w\.-]+@([\w-]+\.)+[\w-]{2,4}$',
-                  );
-                  if (!emailRegex.hasMatch(value)) return 'Invalid email';
-                  return null;
-                },
-                keyboardType: TextInputType.emailAddress,
-              ),
-              SizedBox(height: 20),
-              // Password field with show/hide toggle.
-              TextFormField(
-                controller: _pwCtrl,
-                obscureText: _obscurePassword,
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  prefixIcon: Icon(Icons.lock),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility
-                          : Icons.visibility_off,
+        backgroundColor: Colors.grey[100],
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                // Email field.
+                TextFormField(
+                  controller: _emailCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Email',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    onPressed:
-                        () => setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        }),
+                    prefixIcon: Icon(Icons.email),
                   ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your email';
+                    }
+                    final emailRegex = RegExp(
+                      r'^[\w\.-]+@([\w-]+\.)+[\w-]{2,4}$',
+                    );
+                    if (!emailRegex.hasMatch(value)) return 'Invalid email';
+                    return null;
+                  },
+                  keyboardType: TextInputType.emailAddress,
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your password';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 30),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.indigo,
-                  foregroundColor: Colors.white,
-                  minimumSize: Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                SizedBox(height: 20),
+                // Password field with show/hide toggle.
+                TextFormField(
+                  controller: _pwCtrl,
+                  obscureText: _obscurePassword,
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    prefixIcon: Icon(Icons.lock),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                      ),
+                      onPressed:
+                          () => setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          }),
+                    ),
                   ),
-                  textStyle: TextStyle(fontSize: 18),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your password';
+                    }
+                    return null;
+                  },
                 ),
-                onPressed: _submitLogin,
-                child: Text("Login"),
-              ),
-            ],
+                SizedBox(height: 30),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo,
+                    foregroundColor: Colors.white,
+                    minimumSize: Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    textStyle: TextStyle(fontSize: 18),
+                  ),
+                  onPressed: _submitLogin,
+                  child: Text("Login"),
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -201,9 +201,11 @@ class AuthService {
   Future<List> getDroneList() async {
     // 1. send the request
     await _ws.send({'action': 'list_registered_drones', 'token': token});
+    print("Sent list_registered_drones request");
     // 2. get the (decrypted) response
     final resp = await _ws.stream().first;
-    print(resp);
+    print("BBBBB");
+    print("CCCC" + jsonEncode(resp));
     if (resp['error'] != null) {
       throw Exception(resp['error']);
     }
@@ -232,6 +234,7 @@ class AuthService {
 
   /// Connects to a drone.
   Future<void> connectDrone(String droneName) async {
+    print('Connecting to $droneName...');
     // 1. send the request
     await _ws.send({
       'action': 'connect',
@@ -245,6 +248,7 @@ class AuthService {
     if (resp['error'] != null) {
       throw Exception(resp['error']);
     }
+    AuthService.instance.sessionId = resp['session_id'] as String;
     _storage.write(key: 'session_id', value: resp['session_id'] as String);
   }
 
@@ -370,7 +374,7 @@ class AuthService {
 
     // 2. await the first decrypted response
     final resp = await _ws.stream().first;
-    print(resp);
+    print("FFFFF" + jsonEncode(resp));
     if (resp['error'] != null) {
       throw Exception(resp['error']);
     }
@@ -469,7 +473,8 @@ class AuthService {
 
     // 2. await the first decrypted response
     final resp = await _ws.stream().first;
-    print(resp);
+    print("DDDDD");
+    print("EEEE" + jsonEncode(resp));
     if (resp['error'] != null) {
       throw Exception(resp['error']);
     }

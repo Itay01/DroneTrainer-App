@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/auth_service.dart';
 import '../widgets/gradient_text.dart';
+import '../navigation_helper.dart';
 
 class NewDroneConnectionScreen extends StatefulWidget {
   const NewDroneConnectionScreen({super.key});
@@ -31,7 +32,7 @@ class _NewDroneConnectionScreenState extends State<NewDroneConnectionScreen> {
   void initState() {
     super.initState();
     // Simulate discovering a new drone after 3 seconds.
-    _discoveryTimer = Timer(Duration(seconds: 3), () {
+    _discoveryTimer = Timer(const Duration(seconds: 3), () {
       setState(() {
         _discoveredDrones.add({'name': 'Drone 1', 'ip': '192.168.1.50'});
       });
@@ -70,9 +71,8 @@ class _NewDroneConnectionScreenState extends State<NewDroneConnectionScreen> {
         setState(() {
           _isConfirmed = true;
         });
-        Future.delayed(Duration(seconds: 1), () {
-          Navigator.pushReplacementNamed(context, '/takeoff');
-        });
+        await Future.delayed(const Duration(seconds: 1));
+        Navigator.pushReplacementNamed(context, '/takeoff');
       } catch (e) {
         ScaffoldMessenger.of(
           context,
@@ -100,194 +100,224 @@ class _NewDroneConnectionScreenState extends State<NewDroneConnectionScreen> {
     final double containerHeight =
         count > 0 ? (isScrollable ? 3 * tileHeight : count * tileHeight) : 0;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: GradientText(
-          text: "New Drone Connection",
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          gradient: LinearGradient(colors: [Colors.indigo, Colors.blueAccent]),
+    return WillPopScope(
+      onWillPop:
+          () => NavigationHelper.onBackPressed(
+            context,
+            NavScreen.newDroneConnection,
+          ),
+      child: Scaffold(
+        backgroundColor: Colors.grey[100],
+        appBar: AppBar(
+          leading: NavigationHelper.buildBackArrow(
+            context,
+            NavScreen.newDroneConnection,
+          ),
+          title: GradientText(
+            text: "New Drone Connection",
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            gradient: LinearGradient(
+              colors: [Colors.indigo, Colors.blueAccent],
+            ),
+          ),
+          centerTitle: true,
+          backgroundColor: Colors.white,
+          elevation: 2,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout),
+              onPressed: () async {
+                await AuthService.instance.logout();
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/welcome',
+                  (route) => false,
+                );
+              },
+            ),
+          ],
         ),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 2,
-      ),
-      backgroundColor: Colors.grey[100],
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Connection Details Form.
-                  Form(
-                    key: _formKey,
-                    child: Column(
-                      children: [
-                        TextFormField(
-                          controller: _droneNameController,
-                          decoration: InputDecoration(
-                            labelText: 'Drone Name',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            prefixIcon: Icon(Icons.label),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Please enter a drone name';
-                            }
-                            return null;
-                          },
-                        ),
-                        SizedBox(height: 20),
-                        TextFormField(
-                          controller: _ipController,
-                          decoration: InputDecoration(
-                            labelText: 'IP Address',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            prefixIcon: Icon(Icons.router),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Please enter the IP address';
-                            }
-                            final ipRegex = RegExp(r'^(\d{1,3}\.){3}\d{1,3}$');
-                            if (!ipRegex.hasMatch(value.trim())) {
-                              return 'Enter a valid IP address';
-                            }
-                            return null;
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: 30),
-                  // Discovered Drones Section.
-                  Text(
-                    'Automatically Discovered Drones',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.indigo[900],
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  // Drone List Container.
-                  Container(
-                    height: containerHeight,
-                    padding: EdgeInsets.symmetric(horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(color: Colors.black12, blurRadius: 5),
-                      ],
-                    ),
-                    child:
-                        count > 0
-                            ? RawScrollbar(
-                              controller: _droneListController,
-                              thumbVisibility: isScrollable,
-                              thickness: 8,
-                              radius: Radius.circular(8),
-                              padding: EdgeInsets.only(top: 12, bottom: 12),
-                              child: ListView.builder(
-                                controller: _droneListController,
-                                shrinkWrap: true,
-                                primary: false,
-                                physics:
-                                    isScrollable
-                                        ? AlwaysScrollableScrollPhysics()
-                                        : NeverScrollableScrollPhysics(),
-                                itemCount: _discoveredDrones.length,
-                                itemBuilder: (context, index) {
-                                  final drone = _discoveredDrones[index];
-                                  return ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: Icon(
-                                      Icons.airplanemode_active,
-                                      color: Colors.blueAccent,
-                                    ),
-                                    title: Text(drone['name']!),
-                                    subtitle: Text(drone['ip']!),
-                                    onTap: () => _selectDiscoveredDrone(drone),
-                                  );
-                                },
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Connection Details Form.
+                    Form(
+                      key: _formKey,
+                      child: Column(
+                        children: [
+                          TextFormField(
+                            controller: _droneNameController,
+                            decoration: InputDecoration(
+                              labelText: 'Drone Name',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                            )
-                            : Center(child: Text("No drones discovered yet")),
-                  ),
-                  // Spinner row below the list.
-                  Padding(
-                    padding: const EdgeInsets.only(top: 15.0),
-                    child: Row(
+                              prefixIcon: Icon(Icons.label),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please enter a drone name';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 20),
+                          TextFormField(
+                            controller: _ipController,
+                            decoration: InputDecoration(
+                              labelText: 'IP Address',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              prefixIcon: Icon(Icons.router),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please enter the IP address';
+                              }
+                              final ipRegex = RegExp(
+                                r'^(\d{1,3}\.){3}\d{1,3}\$',
+                              );
+                              if (!ipRegex.hasMatch(value.trim())) {
+                                return 'Enter a valid IP address';
+                              }
+                              return null;
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                    // Discovered Drones Section.
+                    Text(
+                      'Automatically Discovered Drones',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.indigo[900],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    // Drone List Container.
+                    Container(
+                      height: containerHeight,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black12, blurRadius: 5),
+                        ],
+                      ),
+                      child:
+                          count > 0
+                              ? RawScrollbar(
+                                controller: _droneListController,
+                                thumbVisibility: isScrollable,
+                                thickness: 8,
+                                radius: Radius.circular(8),
+                                padding: const EdgeInsets.only(
+                                  top: 12,
+                                  bottom: 12,
+                                ),
+                                child: ListView.builder(
+                                  controller: _droneListController,
+                                  shrinkWrap: true,
+                                  physics:
+                                      isScrollable
+                                          ? const AlwaysScrollableScrollPhysics()
+                                          : const NeverScrollableScrollPhysics(),
+                                  itemCount: _discoveredDrones.length,
+                                  itemBuilder: (context, index) {
+                                    final drone = _discoveredDrones[index];
+                                    return ListTile(
+                                      leading: Icon(
+                                        Icons.airplanemode_active,
+                                        color: Colors.blueAccent,
+                                      ),
+                                      title: Text(drone['name']!),
+                                      subtitle: Text(drone['ip']!),
+                                      onTap:
+                                          () => _selectDiscoveredDrone(drone),
+                                    );
+                                  },
+                                ),
+                              )
+                              : const Center(
+                                child: Text("No drones discovered yet"),
+                              ),
+                    ),
+                    const SizedBox(height: 15),
+                    Row(
                       children: [
-                        SizedBox(
+                        const SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         ),
-                        SizedBox(width: 12),
-                        Text("Searching for drones..."),
+                        const SizedBox(width: 12),
+                        const Text("Searching for drones..."),
                       ],
                     ),
-                  ),
-                  SizedBox(height: 30),
-                  // Connect Button for manual connection.
-                  ElevatedButton(
-                    onPressed: _connect,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
-                      foregroundColor: Colors.white,
-                      minimumSize: Size(double.infinity, 50),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                    const SizedBox(height: 30),
+                    ElevatedButton(
+                      onPressed: _connect,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueAccent,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        textStyle: const TextStyle(fontSize: 22),
                       ),
-                      textStyle: TextStyle(fontSize: 22),
+                      child: const Text("Connect"),
                     ),
-                    child: Text("Connect"),
-                  ),
-                  SizedBox(height: 20),
-                ],
-              ),
-            ),
-          ),
-          // Overlay for connection status.
-          if (_isConnecting)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black.withOpacity(0.5),
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      !_isConfirmed
-                          ? CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
-                          )
-                          : Icon(
-                            Icons.check_circle,
-                            color: Colors.green,
-                            size: 80,
-                          ),
-                      SizedBox(height: 16),
-                      Text(
-                        !_isConfirmed ? "Connecting" : "Connected",
-                        style: TextStyle(color: Colors.white, fontSize: 18),
-                      ),
-                    ],
-                  ),
+                    const SizedBox(height: 20),
+                  ],
                 ),
               ),
             ),
-        ],
+            if (_isConnecting)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black.withOpacity(0.5),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        !_isConfirmed
+                            ? const CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
+                            )
+                            : const Icon(
+                              Icons.check_circle,
+                              color: Colors.green,
+                              size: 80,
+                            ),
+                        const SizedBox(height: 16),
+                        Text(
+                          !_isConfirmed ? "Connecting" : "Connected",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

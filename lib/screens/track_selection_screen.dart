@@ -1,9 +1,11 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
-import 'package:drone_trainer/widgets/loading.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/auth_service.dart';
 import '../widgets/gradient_text.dart';
+import '../widgets/loading.dart';
+import '../navigation_helper.dart';
 
 class TrackSelectionScreen extends StatefulWidget {
   const TrackSelectionScreen({super.key});
@@ -35,7 +37,6 @@ class _TrackSelectionScreenState extends State<TrackSelectionScreen> {
   Future<void> _loadOverlayImage() async {
     try {
       final bytes = await AuthService.instance.captureFrame(overlay: true);
-      // Decode to get natural width/height
       final codec = await ui.instantiateImageCodec(bytes);
       final frame = await codec.getNextFrame();
       final ui.Image info = frame.image;
@@ -64,9 +65,8 @@ class _TrackSelectionScreenState extends State<TrackSelectionScreen> {
     final containerH = box.size.height;
     final imgW = _imgWidth!.toDouble();
     final imgH = _imgHeight!.toDouble();
-    // Calculate scale for BoxFit.contain
     final scale =
-        (containerW / imgW).clamp(0, double.infinity) < (containerH / imgH)
+        (containerW / imgW) < (containerH / imgH)
             ? containerW / imgW
             : containerH / imgH;
     final displayW = imgW * scale;
@@ -75,7 +75,6 @@ class _TrackSelectionScreenState extends State<TrackSelectionScreen> {
     final offsetY = (containerH - displayH) / 2;
     final dx = local.dx;
     final dy = local.dy;
-    // Check if tap is within displayed image
     if (dx < offsetX ||
         dx > offsetX + displayW ||
         dy < offsetY ||
@@ -85,7 +84,6 @@ class _TrackSelectionScreenState extends State<TrackSelectionScreen> {
       );
       return;
     }
-    // Compute relative click in original image coordinates
     final relX = (dx - offsetX) / scale;
     final relY = (dy - offsetY) / scale;
 
@@ -101,7 +99,6 @@ class _TrackSelectionScreenState extends State<TrackSelectionScreen> {
             _laneChangeComplete = true;
           });
           await Future.delayed(const Duration(seconds: 1));
-
           Navigator.pushReplacementNamed(context, '/speedSelection');
         })
         .catchError((error) {
@@ -115,63 +112,89 @@ class _TrackSelectionScreenState extends State<TrackSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: GradientText(
-          text: "Select Running Track",
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          gradient: const LinearGradient(
-            colors: [Colors.indigo, Colors.blueAccent],
+    return WillPopScope(
+      onWillPop:
+          () =>
+              NavigationHelper.onBackPressed(context, NavScreen.trackSelection),
+      child: Scaffold(
+        appBar: AppBar(
+          leading: NavigationHelper.buildBackArrow(
+            context,
+            NavScreen.trackSelection,
           ),
+          title: GradientText(
+            text: "Select Running Track",
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            gradient: const LinearGradient(
+              colors: [Colors.indigo, Colors.blueAccent],
+            ),
+          ),
+          centerTitle: true,
+          backgroundColor: Colors.white,
+          elevation: 2,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout),
+              onPressed: () async {
+                await AuthService.instance.land();
+                await AuthService.instance.endSession(
+                  AuthService.instance.sessionId ?? '',
+                );
+                await AuthService.instance.logout();
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/welcome',
+                  (route) => false,
+                );
+              },
+            ),
+          ],
         ),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 2,
-      ),
-      body: Stack(
-        children: [
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _error != null
-              ? Center(child: Text(_error!))
-              : Column(
-                children: [
-                  const SizedBox(height: 16),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Text(
-                      'Tap on the image to select your lane',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.indigo,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: GestureDetector(
-                      key: _imageKey,
-                      onTapDown: _onImageTap,
-                      child: Container(
-                        color: Colors.black12,
-                        child: Image.memory(
-                          _overlayImage!,
-                          width: double.infinity,
-                          fit: BoxFit.contain,
+        body: Stack(
+          children: [
+            _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                ? Center(child: Text(_error!))
+                : Column(
+                  children: [
+                    const SizedBox(height: 16),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Text(
+                        'Tap on the image to select your lane',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.indigo,
                         ),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        key: _imageKey,
+                        onTapDown: _onImageTap,
+                        child: Container(
+                          color: Colors.black12,
+                          child: Image.memory(
+                            _overlayImage!,
+                            width: double.infinity,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+            if (_isChangingLane)
+              LoadingWidget(
+                text: 'Changing lane...',
+                isConfirmed: _laneChangeComplete,
               ),
-          if (_isChangingLane)
-            LoadingWidget(
-              text: 'Changing lane...',
-              isConfirmed: _laneChangeComplete,
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

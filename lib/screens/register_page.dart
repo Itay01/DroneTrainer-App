@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../widgets/gradient_text.dart';
+import '../navigation_helper.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -92,7 +93,7 @@ class _RegisterPageState extends State<RegisterPage> {
       _hasUppercase = password.contains(RegExp(r'[A-Z]'));
       _hasLowercase = password.contains(RegExp(r'[a-z]'));
       _hasNumber = password.contains(RegExp(r'\d'));
-      _hasSymbol = password.contains(RegExp(r'[!@#\\$&*~]'));
+      _hasSymbol = password.contains(RegExp(r'[!@#\$&*~]'));
     });
   }
 
@@ -161,164 +162,172 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: GradientText(
-          text: "Register",
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          gradient: LinearGradient(colors: [Colors.indigo, Colors.blueAccent]),
+    return WillPopScope(
+      onWillPop:
+          () => NavigationHelper.onBackPressed(context, NavScreen.register),
+      child: Scaffold(
+        appBar: AppBar(
+          leading: NavigationHelper.buildBackArrow(context, NavScreen.register),
+          title: GradientText(
+            text: "Register",
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            gradient: LinearGradient(
+              colors: [Colors.indigo, Colors.blueAccent],
+            ),
+          ),
+          centerTitle: true,
+          backgroundColor: Colors.white,
+          elevation: 2,
+          // no logout button on register page
         ),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 2,
-      ),
-      backgroundColor: Colors.grey[100],
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              // Full Name field.
-              TextFormField(
-                controller: _fullNameController,
-                decoration: InputDecoration(
-                  labelText: 'Full Name',
-                  errorText: _fullNameError,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  prefixIcon: Icon(Icons.person),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter your full name';
-                  }
-                  if (value.trim().split(' ').length < 2) {
-                    return 'Enter first and last name';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 20),
-              // Email field.
-              TextFormField(
-                controller: _emailController,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  errorText: _emailError,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  prefixIcon: Icon(Icons.email),
-                ),
-              ),
-              SizedBox(height: 20),
-              // Password field.
-              TextFormField(
-                controller: _passwordController,
-                obscureText: _obscurePassword,
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  prefixIcon: Icon(Icons.lock),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility
-                          : Icons.visibility_off,
+        backgroundColor: Colors.grey[100],
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                // Full Name field.
+                TextFormField(
+                  controller: _fullNameController,
+                  decoration: InputDecoration(
+                    labelText: 'Full Name',
+                    errorText: _fullNameError,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    onPressed:
-                        () => setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        }),
+                    prefixIcon: Icon(Icons.person),
                   ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter your full name';
+                    }
+                    if (value.trim().split(' ').length < 2) {
+                      return 'Enter first and last name';
+                    }
+                    return null;
+                  },
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a password';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 20),
-              // Confirm Password field.
-              TextFormField(
-                controller: _confirmPasswordController,
-                obscureText: _obscureConfirmPassword,
-                decoration: InputDecoration(
-                  labelText: 'Confirm Password',
-                  errorText: _confirmPasswordError,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  prefixIcon: Icon(Icons.lock),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscureConfirmPassword
-                          ? Icons.visibility
-                          : Icons.visibility_off,
+                SizedBox(height: 20),
+                // Email field.
+                TextFormField(
+                  controller: _emailController,
+                  decoration: InputDecoration(
+                    labelText: 'Email',
+                    errorText: _emailError,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    onPressed:
-                        () => setState(() {
-                          _obscureConfirmPassword = !_obscureConfirmPassword;
-                        }),
+                    prefixIcon: Icon(Icons.email),
                   ),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please confirm your password';
-                  }
-                  if (value != _passwordController.text) {
-                    return 'Passwords do not match';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 10),
-              // Real-time password rules.
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildPasswordRule(
-                    passed: _isPassword8,
-                    text: 'At least 8 characters',
+                SizedBox(height: 20),
+                // Password field.
+                TextFormField(
+                  controller: _passwordController,
+                  obscureText: _obscurePassword,
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    prefixIcon: Icon(Icons.lock),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                      ),
+                      onPressed:
+                          () => setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          }),
+                    ),
                   ),
-                  _buildPasswordRule(
-                    passed: _hasUppercase,
-                    text: 'At least 1 uppercase letter',
-                  ),
-                  _buildPasswordRule(
-                    passed: _hasLowercase,
-                    text: 'At least 1 lowercase letter',
-                  ),
-                  _buildPasswordRule(
-                    passed: _hasNumber,
-                    text: 'At least 1 number',
-                  ),
-                  _buildPasswordRule(
-                    passed: _hasSymbol,
-                    text: 'At least 1 symbol (!@#\$&*~)',
-                  ),
-                ],
-              ),
-              SizedBox(height: 30),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueAccent,
-                  foregroundColor: Colors.white,
-                  minimumSize: Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  textStyle: TextStyle(fontSize: 18),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter a password';
+                    }
+                    return null;
+                  },
                 ),
-                onPressed: _submitRegistration,
-                child: Text("Register"),
-              ),
-            ],
+                SizedBox(height: 20),
+                // Confirm Password field.
+                TextFormField(
+                  controller: _confirmPasswordController,
+                  obscureText: _obscureConfirmPassword,
+                  decoration: InputDecoration(
+                    labelText: 'Confirm Password',
+                    errorText: _confirmPasswordError,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    prefixIcon: Icon(Icons.lock),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscureConfirmPassword
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                      ),
+                      onPressed:
+                          () => setState(() {
+                            _obscureConfirmPassword = !_obscureConfirmPassword;
+                          }),
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please confirm your password';
+                    }
+                    if (value != _passwordController.text) {
+                      return 'Passwords do not match';
+                    }
+                    return null;
+                  },
+                ),
+                SizedBox(height: 10),
+                // Real-time password rules.
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildPasswordRule(
+                      passed: _isPassword8,
+                      text: 'At least 8 characters',
+                    ),
+                    _buildPasswordRule(
+                      passed: _hasUppercase,
+                      text: 'At least 1 uppercase letter',
+                    ),
+                    _buildPasswordRule(
+                      passed: _hasLowercase,
+                      text: 'At least 1 lowercase letter',
+                    ),
+                    _buildPasswordRule(
+                      passed: _hasNumber,
+                      text: 'At least 1 number',
+                    ),
+                    _buildPasswordRule(
+                      passed: _hasSymbol,
+                      text: 'At least 1 symbol (!@#\$&*~)',
+                    ),
+                  ],
+                ),
+                SizedBox(height: 30),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent,
+                    foregroundColor: Colors.white,
+                    minimumSize: Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    textStyle: TextStyle(fontSize: 18),
+                  ),
+                  onPressed: _submitRegistration,
+                  child: Text("Register"),
+                ),
+              ],
+            ),
           ),
         ),
       ),

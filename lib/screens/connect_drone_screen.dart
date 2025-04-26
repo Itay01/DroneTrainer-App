@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../widgets/gradient_text.dart';
 import '../widgets/loading.dart';
+import '../navigation_helper.dart';
 
 class ConnectDroneScreen extends StatefulWidget {
   const ConnectDroneScreen({super.key});
@@ -23,6 +24,7 @@ class _ConnectDroneScreenState extends State<ConnectDroneScreen> {
   }
 
   Future<void> _fetchDrones() async {
+    print('Fetching drones...');
     try {
       final drones = await AuthService.instance.getDroneList();
       setState(() {
@@ -59,142 +61,153 @@ class _ConnectDroneScreenState extends State<ConnectDroneScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        title: GradientText(
-          text: 'Connect to Drone',
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          gradient: const LinearGradient(
-            colors: [Colors.indigo, Colors.blueAccent],
+    return WillPopScope(
+      onWillPop:
+          () => NavigationHelper.onBackPressed(context, NavScreen.connectDrone),
+      child: Scaffold(
+        backgroundColor: Colors.grey[100],
+        appBar: AppBar(
+          // No back arrow on ConnectDrone per spec
+          title: GradientText(
+            text: 'Connect to Drone',
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            gradient: const LinearGradient(
+              colors: [Colors.indigo, Colors.blueAccent],
+            ),
           ),
+          centerTitle: true,
+          backgroundColor: Colors.white,
+          elevation: 2,
+          leading: NavigationHelper.buildBackArrow(
+            context,
+            NavScreen.connectDrone,
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout),
+              onPressed: () async {
+                // ensure any session is closed
+                await AuthService.instance.logout();
+                Navigator.pushReplacementNamed(context, '/welcome');
+              },
+            ),
+          ],
         ),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 2,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await AuthService.instance.logout();
-              Navigator.pushReplacementNamed(context, '/welcome');
-            },
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: [Colors.indigo, Colors.blueAccent],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black26,
-                        blurRadius: 10,
-                        offset: Offset(0, 5),
+        body: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        colors: [Colors.indigo, Colors.blueAccent],
                       ),
-                    ],
-                  ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.wifi_tethering,
-                      size: 60,
-                      color: Colors.white,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 10,
+                          offset: Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.wifi_tethering,
+                        size: 60,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Select a previous connection or connect to a new drone',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 18, color: Colors.indigo),
-                ),
-                const SizedBox(height: 30),
-                Expanded(
-                  child:
-                      _isLoading
-                          ? const Center(child: CircularProgressIndicator())
-                          : _droneList.isEmpty
-                          ? const Center(
-                            child: Text('No previous drones found.'),
-                          )
-                          : ListView.builder(
-                            itemCount: _droneList.length,
-                            itemBuilder: (context, index) {
-                              final drone = _droneList[index];
-                              return Card(
-                                color: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                margin: const EdgeInsets.symmetric(vertical: 8),
-                                elevation: 3,
-                                child: ListTile(
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Select a previous connection or connect to a new drone',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 18, color: Colors.indigo),
+                  ),
+                  const SizedBox(height: 30),
+                  Expanded(
+                    child:
+                        _isLoading
+                            ? const Center(child: CircularProgressIndicator())
+                            : _droneList.isEmpty
+                            ? const Center(
+                              child: Text('No previous drones found.'),
+                            )
+                            : ListView.builder(
+                              itemCount: _droneList.length,
+                              itemBuilder: (context, index) {
+                                final drone = _droneList[index];
+                                return Card(
+                                  color: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  margin: const EdgeInsets.symmetric(
                                     vertical: 8,
                                   ),
-                                  title: Text(
-                                    drone["drone_name"],
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
+                                  elevation: 3,
+                                  child: ListTile(
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 8,
                                     ),
+                                    title: Text(
+                                      drone["drone_name"],
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      drone["drone_ip"],
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                    trailing: const Icon(
+                                      Icons.chevron_right,
+                                      color: Colors.indigo,
+                                    ),
+                                    onTap:
+                                        () => _connectToDrone(
+                                          drone["drone_name"],
+                                        ),
                                   ),
-                                  subtitle: Text(
-                                    drone["drone_ip"],
-                                    style: const TextStyle(fontSize: 14),
-                                  ),
-                                  trailing: const Icon(
-                                    Icons.chevron_right,
-                                    color: Colors.indigo,
-                                  ),
-                                  onTap:
-                                      () =>
-                                          _connectToDrone(drone["drone_name"]),
-                                ),
-                              );
-                            },
-                          ),
-                ),
-                const SizedBox(height: 10),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueAccent,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    textStyle: const TextStyle(fontSize: 18),
+                                );
+                              },
+                            ),
                   ),
-                  onPressed:
-                      () => Navigator.pushReplacementNamed(
-                        context,
-                        '/newDroneConnection',
+                  const SizedBox(height: 10),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueAccent,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(double.infinity, 50),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                  child: const Text('Connect to New Drone'),
-                ),
-              ],
+                      textStyle: const TextStyle(fontSize: 18),
+                    ),
+                    onPressed:
+                        () => Navigator.pushReplacementNamed(
+                          context,
+                          '/newDroneConnection',
+                        ),
+                    child: const Text('Connect to New Drone'),
+                  ),
+                ],
+              ),
             ),
-          ),
-
-          if (_isConnecting)
-            // use the LoadingWidget from the previous code snippet
-            LoadingWidget(
-              text: 'Connecting to drone...',
-              isConfirmed: _isConfirmed,
-            ),
-        ],
+            if (_isConnecting)
+              LoadingWidget(
+                text: 'Connecting to drone...',
+                isConfirmed: _isConfirmed,
+              ),
+          ],
+        ),
       ),
     );
   }
