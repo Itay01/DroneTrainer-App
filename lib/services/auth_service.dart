@@ -1,15 +1,20 @@
-// lib/services/auth_service.dart
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
+
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:web_socket_channel/io.dart';
 
+/// Service URL for secure WebSocket connection.
 const _serverUrl = 'wss://192.168.1.50:8765'; // ⟵ adjust for prod
-const _storage = FlutterSecureStorage(); // Android / iOS secure‑store
 
-// ----------  Secure WebSocket  ----------
+/// Secure storage for tokens and session IDs.
+const _storage = FlutterSecureStorage();
+
+// ─────────────────────── Secure WebSocket ───────────────────────────
+/// Wraps an [IOWebSocketChannel] to perform Diffie–Hellman key exchange
+/// and AES-GCM encryption/decryption for all messages.
 class SecureWS {
   SecureWS._(this._chan, this._aes, this._sharedKey, this._decryptedBroadcast);
 
@@ -18,13 +23,14 @@ class SecureWS {
   final SecretKey _sharedKey;
   final Stream<Map<String, dynamic>> _decryptedBroadcast;
 
-  /// Opens a TLS WebSocket, performs DH key exchange, and returns a SecureWS.
+  /// Establishes a TLS WebSocket connection and performs X25519 DH handshake.
+  /// Returns a [SecureWS] instance with encryption context.
   static Future<SecureWS> connect() async {
-    // 1. Open raw TLS WebSocket and make it broadcast-capable
+    // 1. Open raw TLS WebSocket
     final chan = IOWebSocketChannel.connect(Uri.parse(_serverUrl));
     final raw = chan.stream.asBroadcastStream();
 
-    // 2. X25519 Diffie-Hellman handshake
+    // 2. Generate ephemeral X25519 key pair and send client public key
     final dh = X25519();
     final privKey = await dh.newKeyPair();
     final pubBytes = await privKey.extractPublicKey().then((k) => k.bytes);
@@ -35,7 +41,7 @@ class SecureWS {
       }),
     );
 
-    // Receive server's public key
+    // 3. Receive server public key and compute shared secret
     final serverMsg = jsonDecode(await raw.first) as Map<String, dynamic>;
     final serverPubKey = SimplePublicKey(
       base64Decode(serverMsg['server_public_key'] as String),
@@ -46,14 +52,15 @@ class SecureWS {
       remotePublicKey: serverPubKey,
     );
 
-    // 3. Set up decryption pipeline
+    // 4. Set up AES-GCM for encryption/decryption
     final aes = AesGcm.with256bits();
     final decrypted = raw.asyncMap<Map<String, dynamic>>((rawMsg) async {
       final data = jsonDecode(rawMsg) as Map<String, dynamic>;
-      // If unencrypted, forward directly
+      // If message is plain JSON (no encryption), forward as-is
       if (data['nonce'] == null || data['ciphertext'] == null) {
         return data;
       }
+      // Otherwise decrypt AES-GCM
       final nonce = base64Decode(data['nonce'] as String);
       final combined = base64Decode(data['ciphertext'] as String);
       const tagLen = 16;
@@ -65,13 +72,12 @@ class SecureWS {
       return jsonDecode(utf8.decode(plain)) as Map<String, dynamic>;
     });
 
-    // 4. Broadcast the decrypted stream so multiple listeners can subscribe
+    // Broadcast decrypted stream so multiple listeners can subscribe
     final broadcast = decrypted.asBroadcastStream();
-
     return SecureWS._(chan, aes, shared, broadcast);
   }
 
-  /// Encrypts [obj] with AES-GCM and sends over the socket.
+  /// Encrypts [obj] with AES-GCM and sends it over the socket.
   Future<void> send(Map<String, dynamic> obj) async {
     final nonce = _random(12);
     final secretBox = await _aes.encrypt(
@@ -88,17 +94,19 @@ class SecureWS {
     );
   }
 
-  /// Returns a broadcast stream of decrypted JSON messages.
+  /// Provides a broadcast stream of decrypted JSON messages.
   Stream<Map<String, dynamic>> stream() => _decryptedBroadcast;
 
   /// Closes the underlying WebSocket connection.
   void close() => _chan.sink.close();
 
+  /// Generates a secure random list of bytes of given [length].
   static List<int> _random(int length) =>
       List<int>.generate(length, (_) => Random.secure().nextInt(256));
 }
 
-// ----------  AuthService singleton  ----------
+// ─────────────────────── AuthService Singleton ───────────────────────
+/// Singleton service for authentication, token storage, and drone session management.
 class AuthService {
   AuthService._();
   static final instance = AuthService._();
@@ -108,7 +116,8 @@ class AuthService {
   String? _refresh;
   String? sessionId;
 
-  /// Call on app startup. Returns true if we had valid tokens.
+  /// Initializes service: reads stored tokens and attempts refresh.
+  /// Returns true if valid tokens exist and refresh succeeded.
   Future<bool> init() async {
     _access = await _storage.read(key: 'access');
     _refresh = await _storage.read(key: 'refresh');
@@ -116,25 +125,23 @@ class AuthService {
 
     _ws = await SecureWS.connect();
 
-    // No tokens → not logged in
+    // If no tokens, user not authenticated
     if (_access == null || _refresh == null) {
       return false;
     }
 
-    // Try to refresh
+    // Attempt to refresh access token
     await _ws.send({'action': 'refresh_token', 'refresh_token': _refresh});
     final resp = await _ws.stream().first;
-
     if (resp['error'] != null) {
       await logout();
       return false;
     }
-
     _saveTokensChecked(resp);
     return true;
   }
 
-  /// Login with email + password
+  /// Performs login; throws on error.
   Future<void> login(String email, String pw) async {
     await _ws.send({
       'action': 'login',
@@ -148,7 +155,7 @@ class AuthService {
     _saveTokensChecked(resp);
   }
 
-  /// Register a new user
+  /// Registers a new user; throws on error.
   Future<void> register(String name, String email, String pw) async {
     await _ws.send({
       'action': 'register',
@@ -156,41 +163,33 @@ class AuthService {
       'email': email.toLowerCase(),
       'password': pw,
     });
-
     final resp = await _ws.stream().first;
-    // DEBUG: print the full response so you can see what keys you actually got
-    print('🔐 register response: $resp');
-
-    // If server sent an error field that’s non-null, throw it
     if (resp['error'] != null) {
       throw Exception(resp['error']);
     }
-
-    // Save tokens, but first check for null
     _saveTokensChecked(resp);
   }
 
-  /// Clear stored tokens
+  /// Clears stored tokens and session.
   Future<void> logout() async {
     await _storage.deleteAll();
-    _access = _refresh = sessionId = null;
+    _access = _refresh = sessionId = '';
   }
 
-  /// Extracts and saves tokens, throwing if any are missing or null.
+  /// Extracts and persists tokens from server [resp].
   void _saveTokensChecked(Map<String, dynamic> resp) {
     final access = resp['access_token'] as String?;
     final refresh = resp['refresh_token'] as String?;
     if (access == null || refresh == null) {
-      throw Exception('Missing token(s) in server response: $resp');
+      throw Exception('Missing token(s) in server response: \$resp');
     }
     _access = access;
     _refresh = refresh;
-    // These writes now definitely get non-null Strings
-    _storage.write(key: 'access', value: _access!);
-    _storage.write(key: 'refresh', value: _refresh!);
+    _storage.write(key: 'access', value: access);
+    _storage.write(key: 'refresh', value: refresh);
   }
 
-  /// Current access token (throws if null)
+  /// Returns current access token; throws if not authenticated.
   String get token {
     if (_access == null) {
       throw Exception('Not authenticated');
@@ -198,282 +197,192 @@ class AuthService {
     return _access!;
   }
 
+  /// Requests list of registered drones; returns list data.
   Future<List> getDroneList() async {
-    // 1. send the request
     await _ws.send({'action': 'list_registered_drones', 'token': token});
-    // 2. get the (decrypted) response
     final resp = await _ws.stream().first;
-    print(resp);
-    if (resp['error'] != null) {
-      throw Exception(resp['error']);
-    }
-    // server returns {"drones": [{...}]}
+    if (resp['error'] != null) throw Exception(resp['error']);
     return resp['drones'] as List;
   }
 
-  /// Registers a new drone on the server under the current user.
+  /// Registers a new drone under the current user.
   Future<void> registerDrone(String name, String ip) async {
-    // 1. send the request
     await _ws.send({
       'action': 'register_drone',
       'drone_name': name,
       'drone_ip': ip,
       'token': token,
     });
-
-    // 2. await the first decrypted response
     final resp = await _ws.stream().first;
-    print(resp);
-    if (resp['error'] != null) {
-      throw Exception(resp['error']);
-    }
-    // if you expect any data back (e.g. drone_id), you can parse it here.
+    if (resp['error'] != null) throw Exception(resp['error']);
   }
 
-  /// Connects to a drone.
+  /// Connects to a drone by name, storing session ID.
   Future<void> connectDrone(String droneName) async {
-    print('Connecting to $droneName...');
-    // 1. send the request
     await _ws.send({
       'action': 'connect',
       'drone_name': droneName,
       'token': token,
     });
-
-    // 2. await the first decrypted response
     final resp = await _ws.stream().first;
-    print(resp);
-    if (resp['error'] != null) {
-      throw Exception(resp['error']);
-    }
-    AuthService.instance.sessionId = resp['session_id'] as String;
-    _storage.write(key: 'session_id', value: resp['session_id'] as String);
+    if (resp['error'] != null) throw Exception(resp['error']);
+    sessionId = resp['session_id'] as String;
+    _storage.write(key: 'session_id', value: sessionId!);
   }
 
-  /// Initiates takeoff with the given height.
+  /// Commands the drone to take off to [height] meters.
   Future<void> takeoff(double height) async {
-    // 1. send the request
     await _ws.send({'action': 'takeoff', 'height': height, 'token': token});
-
-    // 2. await the first decrypted response
     final resp = await _ws.stream().first;
-    print(resp);
-    if (resp['error'] != null) {
-      throw Exception(resp['error']);
-    }
+    if (resp['error'] != null) throw Exception(resp['error']);
   }
 
-  /// Retrieves the overlay image for the track.
+  /// Captures a frame (overlay optional) and returns bytes.
   Future<Uint8List> captureFrame({bool overlay = false}) async {
-    // 1. send the request
     await _ws.send({
       'action': 'capture_frame',
       'overlay': overlay,
       'token': token,
     });
-
-    // 2. await the first decrypted response
     final resp = await _ws.stream().first;
-    print(resp);
-    if (resp['error'] != null) {
-      throw Exception(resp['error']);
-    }
+    if (resp['error'] != null) throw Exception(resp['error']);
     return base64Decode(resp['image'] as String);
   }
 
+  /// Selects a lane at image coords (clickX, clickY).
   Future<void> chooseLane(double clickX, double clickY) async {
-    // 1. send the request
     await _ws.send({
       'action': 'choose_lane',
       'click_x': clickX,
       'click_y': clickY,
       'token': token,
     });
-
-    // 2. await the first decrypted response
     final resp = await _ws.stream().first;
-    print(resp);
-    if (resp['error'] != null) {
-      throw Exception(resp['error']);
-    }
+    if (resp['error'] != null) throw Exception(resp['error']);
   }
 
+  /// Sets forward speed (km/h converted to m/s internally).
   Future<void> setSpeed(double speed) async {
-    // convert from km/h to m/s
-    double speedMs = ((speed * 1000) / 3600);
-
-    // 1. send the request
+    final speedMs = speed * 1000 / 3600;
     await _ws.send({'action': 'set_speed', 'speed': speedMs, 'token': token});
-
-    // 2. await the first decrypted response
     final resp = await _ws.stream().first;
-    print(resp);
-    if (resp['error'] != null) {
-      throw Exception(resp['error']);
-    }
+    if (resp['error'] != null) throw Exception(resp['error']);
   }
 
+  /// Sets target altitude (meters).
   Future<void> setAltitude(double altitude) async {
-    // 1. send the request
     await _ws.send({
       'action': 'set_height',
       'height': altitude,
       'token': token,
     });
-
-    // 2. await the first decrypted response
     final resp = await _ws.stream().first;
-    print(resp);
-    if (resp['error'] != null) {
-      throw Exception(resp['error']);
-    }
+    if (resp['error'] != null) throw Exception(resp['error']);
   }
 
+  /// Starts the flight loop on the server.
   Future<void> startFly() async {
-    // 1. send the request
     await _ws.send({'action': 'start_fly', 'token': token});
-
-    // 2. await the first decrypted response
     final resp = await _ws.stream().first;
-    print(resp);
-    if (resp['error'] != null) {
-      throw Exception(resp['error']);
-    }
+    if (resp['error'] != null) throw Exception(resp['error']);
   }
 
+  /// Retrieves current sessions for this user.
   Future<List<dynamic>> getCurrentSessions() async {
-    // 1. send the request
     await _ws.send({'action': 'list_current_sessions', 'token': token});
-
-    // 2. await the first decrypted response
     final resp = await _ws.stream().first;
-    print(resp);
-    if (resp['error'] != null) {
-      throw Exception(resp['error']);
-    }
+    if (resp['error'] != null) throw Exception(resp['error']);
     return resp['sessions'] as List;
   }
 
+  /// Stops the flight loop on the server.
   Future<void> stopFly() async {
-    // 1. send the request
     await _ws.send({'action': 'stop_fly', 'token': token});
-
-    // 2. await the first decrypted response
     final resp = await _ws.stream().first;
-    print(resp);
-    if (resp['error'] != null) {
-      throw Exception(resp['error']);
-    }
+    if (resp['error'] != null) throw Exception(resp['error']);
   }
 
+  /// Commands the drone to land.
   Future<void> land() async {
-    // 1. send the request
     await _ws.send({'action': 'land', 'token': token});
-
-    // 2. await the first decrypted response
     final resp = await _ws.stream().first;
-    print(resp);
-    if (resp['error'] != null) {
-      throw Exception(resp['error']);
-    }
+    if (resp['error'] != null) throw Exception(resp['error']);
   }
 
+  /// Disconnects the drone and clears session ID.
   Future<void> disconnectDrone() async {
-    // 1. send the request
     await _ws.send({'action': 'disconnect', 'token': token});
-
-    // 2. await the first decrypted response
     final resp = await _ws.stream().first;
-    print(resp);
-    if (resp['error'] != null) {
-      throw Exception(resp['error']);
-    }
-
-    // 3. clear session ID
+    if (resp['error'] != null) throw Exception(resp['error']);
     await _storage.delete(key: 'session_id');
   }
 
-  /// Subscribe to live telemetry; fires every time the server pushes a telemetry event.
+  /// Subscribes to live telemetry events from the server.
+  /// Returns a [Stream] of telemetry maps.
   Stream<Map<String, dynamic>> subscribeTelemetry() {
     return Stream<Map<String, dynamic>>.multi((controller) async {
-      // 1) send the subscribe request & wait for it to flush
+      // Send subscribe request
       try {
         await _ws.send({'action': 'subscribe_telemetry', 'token': token});
-        print('📡 [AuthService] subscribe_telemetry sent');
       } catch (e, st) {
         controller.addError(e, st);
         return;
       }
-
-      // 2) now listen for only telemetry events
+      // Forward only telemetry events
       final sub = _ws
           .stream()
           .where((msg) => msg['event'] == 'telemetry')
           .listen(
-            (msg) {
-              controller.add(msg);
-            },
+            controller.add,
             onError: controller.addError,
             onDone: controller.close,
           );
-
-      // cancel when the controller is cancelled
       controller.onCancel = sub.cancel;
     });
   }
 
+  /// Unsubscribes from telemetry updates.
   Future<void> unsubscribeTelemetry() async {
     _ws.send({'action': 'unsubscribe_telemetry', 'token': token});
   }
 
-  /// Subscribe to live video; each event is a base64‐encoded JPEG.
+  /// Subscribes to live video frames; toggles overlay via [overlay].
   Stream<List<Uint8List>> subscribeVideo({bool overlay = false}) {
     return Stream<List<Uint8List>>.multi((controller) async {
-      // send subscribe request (include overlay flag if you want)
       await _ws.send({
         'action': 'subscribe_video',
         'overlay': overlay,
         'token': token,
       });
-      print('📹 [AuthService] subscribe_video sent');
-
-      // listen for only video_frame events
       final sub = _ws
           .stream()
           .where((msg) => msg['event'] == 'video_frame')
           .listen(
             (msg) {
-              final b64 = msg['data']["frame"] as String;
-              final b64Front = msg['data']["front_frame"] as String;
-              controller.add([base64Decode(b64), base64Decode(b64Front)]);
+              final b0 = msg['data']['frame'] as String;
+              final b1 = msg['data']['front_frame'] as String;
+              controller.add([base64Decode(b0), base64Decode(b1)]);
             },
             onError: controller.addError,
             onDone: controller.close,
           );
-
       controller.onCancel = sub.cancel;
     });
   }
 
-  /// Unsubscribes from the video stream.
+  /// Unsubscribes from video frames.
   Future<void> unsubscribeVideo() async {
     await _ws.send({'action': 'unsubscribe_video', 'token': token});
   }
 
-  /// Ends the session with the given ID.
+  /// Ends the server session identified by [sessionId].
   Future<void> endSession(String sessionId) async {
-    // 1. send the request
     await _ws.send({
       'action': 'end_session',
       'session_id': sessionId,
       'token': token,
     });
-
-    // 2. await the first decrypted response
     final resp = await _ws.stream().first;
-    print(resp);
-    if (resp['error'] != null) {
-      throw Exception(resp['error']);
-    }
+    if (resp['error'] != null) throw Exception(resp['error']);
   }
 }

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import 'services/auth_service.dart';
 
-/// Identify every screen that needs special back-handling
+/// Screens that require custom back-button handling.
 enum NavScreen {
   splash,
   welcome,
@@ -16,36 +17,35 @@ enum NavScreen {
   flightControl,
 }
 
-/// A single entry-point that handles both the hardware back button
-/// and the visible AppBar arrow.
+/// Helper for unified back navigation (hardware & AppBar arrow).
 class NavigationHelper {
-  /// Returns TRUE if the framework should pop the route naturally.
+  /// Handles back press based on current [page].
+  /// Returns true if the framework should perform a default pop.
   static Future<bool> onBackPressed(BuildContext ctx, NavScreen page) async {
     switch (page) {
-      // ─── Exit the app on these screens ───
+      // ─── Exit the app on these screens ─────────────────────────
       case NavScreen.splash:
       case NavScreen.welcome:
       case NavScreen.connectDrone:
+        // Confirm before exiting
         if (await _confirm(ctx, 'Exit the app?')) {
           SystemNavigator.pop();
         }
         return false;
 
-      // ─── Pop back to existing WelcomePage ───
+      // ─── Default pop back to WelcomePage ───────────────────────
       case NavScreen.register:
       case NavScreen.login:
-        // Allow default pop to return to WelcomePage
         return Future.value(true);
 
-      // ─── Return to Connect Drone ───
+      // ─── Replace with ConnectDrone screen ──────────────────────
       case NavScreen.newDroneConnection:
         Navigator.pushReplacementNamed(ctx, '/connectDrone');
         return false;
 
-      // ─── End session then go to Connect ───
+      // ─── End session then navigate home ────────────────────────
       case NavScreen.takeoff:
-        print('Takeoff onBackPressed');
-        print('Session ID: ${AuthService.instance.sessionId}');
+        // Ensure any active session is ended
         if (AuthService.instance.sessionId != null) {
           await AuthService.instance.endSession(
             AuthService.instance.sessionId!,
@@ -58,7 +58,7 @@ class NavigationHelper {
         );
         return false;
 
-      // ─── Land & end session ───
+      // ─── Land, end session, then navigate home ─────────────────
       case NavScreen.trackSelection:
         if (await _confirm(ctx, 'Land the drone, end session and go back?')) {
           await AuthService.instance.land();
@@ -75,12 +75,12 @@ class NavigationHelper {
         }
         return false;
 
-      // ─── Back to TrackSelection ───
+      // ─── Pop back to TrackSelection ────────────────────────────
       case NavScreen.speedSelection:
         Navigator.pushReplacementNamed(ctx, '/trackSelection');
         return false;
 
-      // ─── Stop, land, disconnect ───
+      // ─── Stop flight, land, disconnect, then home ──────────────
       case NavScreen.flightControl:
         if (await _confirm(
           ctx,
@@ -99,7 +99,7 @@ class NavigationHelper {
     }
   }
 
-  /// Builds the AppBar back arrow, wired to onBackPressed.
+  /// Builds a back arrow icon wired to [onBackPressed].
   static Widget buildBackArrow(BuildContext ctx, NavScreen page) {
     return IconButton(
       icon: const Icon(Icons.arrow_back),
@@ -110,7 +110,8 @@ class NavigationHelper {
     );
   }
 
-  /// Shows a confirmation dialog, returns true if user confirms.
+  /// Shows a confirmation dialog with [msg].
+  /// Returns true if user selects 'Yes'.
   static Future<bool> _confirm(BuildContext ctx, String msg) async {
     final result = await showDialog<bool>(
       context: ctx,
@@ -130,6 +131,7 @@ class NavigationHelper {
             ],
           ),
     );
+    // Default to false if dialog dismissed
     return result ?? false;
   }
 }

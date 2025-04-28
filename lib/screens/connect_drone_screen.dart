@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+
+// Internal service and widgets
 import '../services/auth_service.dart';
 import '../widgets/gradient_text.dart';
 import '../widgets/loading.dart';
 import '../navigation_helper.dart';
 
+/// Screen for connecting to a previously registered drone or adding a new one.
 class ConnectDroneScreen extends StatefulWidget {
+  /// Creates the ConnectDrone screen widget.
   const ConnectDroneScreen({super.key});
 
   @override
@@ -12,19 +16,26 @@ class ConnectDroneScreen extends StatefulWidget {
 }
 
 class _ConnectDroneScreenState extends State<ConnectDroneScreen> {
+  /// List of drones fetched from backend.
   List _droneList = [];
+
+  /// Loading state while fetching the drone list.
   bool _isLoading = true;
+
+  /// Indicates an ongoing connection attempt.
   bool _isConnecting = false;
+
+  /// Indicates successful connection confirmation.
   bool _isConfirmed = false;
 
   @override
   void initState() {
     super.initState();
-    _fetchDrones();
+    _fetchDrones(); // Fetch saved drone connections on init
   }
 
+  /// Fetches the list of previously connected drones.
   Future<void> _fetchDrones() async {
-    print('Fetching drones...');
     try {
       final drones = await AuthService.instance.getDroneList();
       setState(() {
@@ -33,23 +44,27 @@ class _ConnectDroneScreenState extends State<ConnectDroneScreen> {
       });
     } catch (e) {
       setState(() => _isLoading = false);
+      // Show error snackbar on failure
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Failed to load drones: $e')));
     }
   }
 
-  Future<void> _connectToDrone(String drone) async {
+  /// Attempts to connect to the selected drone by name.
+  Future<void> _connectToDrone(String droneName) async {
     setState(() {
       _isConnecting = true;
       _isConfirmed = false;
     });
     try {
-      await AuthService.instance.connectDrone(drone);
+      await AuthService.instance.connectDrone(droneName);
       setState(() => _isConfirmed = true);
+      // Brief delay to show confirmation before navigating
       await Future.delayed(const Duration(seconds: 1));
       Navigator.pushReplacementNamed(context, '/takeoff');
     } catch (e) {
+      // Show error snackbar and reset connecting state
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Failed to connect: $e')));
@@ -62,12 +77,12 @@ class _ConnectDroneScreenState extends State<ConnectDroneScreen> {
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
+      // Handle back button with custom navigation logic
       onWillPop:
           () => NavigationHelper.onBackPressed(context, NavScreen.connectDrone),
       child: Scaffold(
         backgroundColor: Colors.grey[100],
         appBar: AppBar(
-          // No back arrow on ConnectDrone per spec
           title: GradientText(
             text: 'Connect to Drone',
             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
@@ -78,6 +93,7 @@ class _ConnectDroneScreenState extends State<ConnectDroneScreen> {
           centerTitle: true,
           backgroundColor: Colors.white,
           elevation: 2,
+          // Custom back arrow logic
           leading: NavigationHelper.buildBackArrow(
             context,
             NavScreen.connectDrone,
@@ -86,7 +102,7 @@ class _ConnectDroneScreenState extends State<ConnectDroneScreen> {
             IconButton(
               icon: const Icon(Icons.logout),
               onPressed: () async {
-                // ensure any session is closed
+                // Logout and navigate to welcome
                 await AuthService.instance.logout();
                 Navigator.pushReplacementNamed(context, '/welcome');
               },
@@ -99,6 +115,7 @@ class _ConnectDroneScreenState extends State<ConnectDroneScreen> {
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
+                  // Drone icon with gradient circle
                   Container(
                     width: 120,
                     height: 120,
@@ -133,38 +150,41 @@ class _ConnectDroneScreenState extends State<ConnectDroneScreen> {
                   Expanded(
                     child:
                         _isLoading
+                            // Show spinner while loading
                             ? const Center(child: CircularProgressIndicator())
+                            // Show message if no drones
                             : _droneList.isEmpty
                             ? const Center(
                               child: Text('No previous drones found.'),
                             )
+                            // List of available drones
                             : ListView.builder(
                               itemCount: _droneList.length,
                               itemBuilder: (context, index) {
                                 final drone = _droneList[index];
                                 return Card(
                                   color: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
                                   margin: const EdgeInsets.symmetric(
                                     vertical: 8,
                                   ),
                                   elevation: 3,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
                                   child: ListTile(
                                     contentPadding: const EdgeInsets.symmetric(
                                       horizontal: 16,
                                       vertical: 8,
                                     ),
                                     title: Text(
-                                      drone["drone_name"],
+                                      drone['drone_name'],
                                       style: const TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
                                     subtitle: Text(
-                                      drone["drone_ip"],
+                                      drone['drone_ip'],
                                       style: const TextStyle(fontSize: 14),
                                     ),
                                     trailing: const Icon(
@@ -173,7 +193,7 @@ class _ConnectDroneScreenState extends State<ConnectDroneScreen> {
                                     ),
                                     onTap:
                                         () => _connectToDrone(
-                                          drone["drone_name"],
+                                          drone['drone_name'],
                                         ),
                                   ),
                                 );
@@ -181,6 +201,7 @@ class _ConnectDroneScreenState extends State<ConnectDroneScreen> {
                             ),
                   ),
                   const SizedBox(height: 10),
+                  // Button to initiate new drone connection
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blueAccent,
@@ -201,6 +222,7 @@ class _ConnectDroneScreenState extends State<ConnectDroneScreen> {
                 ],
               ),
             ),
+            // Overlay loading/confirmation widget during connection
             if (_isConnecting)
               LoadingWidget(
                 text: 'Connecting to drone...',

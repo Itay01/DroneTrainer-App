@@ -1,34 +1,43 @@
 import 'package:flutter/material.dart';
+
+// Internal services and widgets
 import '../services/auth_service.dart';
 import '../widgets/gradient_text.dart';
 import '../navigation_helper.dart';
 
+/// Registration screen with live validation and strong password rules.
+///
+/// Lets the user enter full name, email, password, and confirm password,
+/// validates inputs in real-time, and registers via AuthService.
 class RegisterPage extends StatefulWidget {
+  /// Creates the RegisterPage widget.
   const RegisterPage({super.key});
+
   @override
   _RegisterPageState createState() => _RegisterPageState();
 }
 
 class _RegisterPageState extends State<RegisterPage> {
+  /// Key for form validation.
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  // Controllers.
+  // ─── Text controllers for form fields ─────────────────────────────────
   final TextEditingController _fullNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
 
-  // Obscure toggles.
+  // ─── Toggles for password visibility ──────────────────────────────────
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
 
-  // Real-time feedback variables.
+  // ─── Error messages for live validation ──────────────────────────────
   String? _fullNameError;
   String? _emailError;
   String? _confirmPasswordError;
 
-  // List of popular email domains.
+  // Popular email domains for quick validation
   final List<String> popularDomains = [
     'gmail.com',
     'yahoo.com',
@@ -36,7 +45,7 @@ class _RegisterPageState extends State<RegisterPage> {
     'hotmail.com',
   ];
 
-  // Password rule booleans.
+  // ─── Password rule trackers ──────────────────────────────────────────
   bool _isPassword8 = false;
   bool _hasUppercase = false;
   bool _hasLowercase = false;
@@ -46,27 +55,28 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   void initState() {
     super.initState();
+    // Attach listeners for live field validation
     _fullNameController.addListener(_validateFullName);
     _emailController.addListener(_validateEmail);
     _passwordController.addListener(_validatePassword);
     _confirmPasswordController.addListener(_validateConfirmPassword);
   }
 
+  /// Validates full name: non-empty and contains at least two words.
   void _validateFullName() {
-    String name = _fullNameController.text.trim();
+    final name = _fullNameController.text.trim();
     String? error;
     if (name.isEmpty) {
       error = 'Please enter your full name';
-    } else if (name.split(' ').length < 2) {
+    } else if (!name.contains(' ')) {
       error = 'Enter first and last name';
     }
-    setState(() {
-      _fullNameError = error;
-    });
+    setState(() => _fullNameError = error);
   }
 
+  /// Validates email format and domain popularity.
   void _validateEmail() {
-    String email = _emailController.text.trim();
+    final email = _emailController.text.trim();
     String? error;
     if (email.isEmpty) {
       error = 'Please enter your email';
@@ -75,28 +85,28 @@ class _RegisterPageState extends State<RegisterPage> {
       if (!emailRegex.hasMatch(email)) {
         error = 'Invalid email format';
       } else {
-        String domain = email.split('@').last.toLowerCase();
+        final domain = email.split('@').last.toLowerCase();
         if (!popularDomains.contains(domain)) {
           error = 'Use a popular email domain';
         }
       }
     }
-    setState(() {
-      _emailError = error;
-    });
+    setState(() => _emailError = error);
   }
 
+  /// Updates password rule trackers based on current input.
   void _validatePassword() {
-    String password = _passwordController.text;
+    final pw = _passwordController.text;
     setState(() {
-      _isPassword8 = password.length >= 8;
-      _hasUppercase = password.contains(RegExp(r'[A-Z]'));
-      _hasLowercase = password.contains(RegExp(r'[a-z]'));
-      _hasNumber = password.contains(RegExp(r'\d'));
-      _hasSymbol = password.contains(RegExp(r'[!@#\$&*~]'));
+      _isPassword8 = pw.length >= 8;
+      _hasUppercase = pw.contains(RegExp(r'[A-Z]'));
+      _hasLowercase = pw.contains(RegExp(r'[a-z]'));
+      _hasNumber = pw.contains(RegExp(r'\d'));
+      _hasSymbol = pw.contains(RegExp(r'[!@#\$&*~]'));
     });
   }
 
+  /// Ensures confirm password matches the main password.
   void _validateConfirmPassword() {
     setState(() {
       _confirmPasswordError =
@@ -106,7 +116,17 @@ class _RegisterPageState extends State<RegisterPage> {
     });
   }
 
-  // Helper widget to display password rules.
+  @override
+  void dispose() {
+    // Clean up controllers
+    _fullNameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  /// Builds a row indicating one password rule's pass/fail state.
   Widget _buildPasswordRule({required bool passed, required String text}) {
     return Row(
       children: [
@@ -115,49 +135,50 @@ class _RegisterPageState extends State<RegisterPage> {
           color: passed ? Colors.green : Colors.red,
           size: 16,
         ),
-        SizedBox(width: 8),
+        const SizedBox(width: 8),
         Text(text, style: TextStyle(color: passed ? Colors.green : Colors.red)),
       ],
     );
   }
 
+  /// Attempts registration if all validations pass; shows feedback.
   Future<void> _submitRegistration() async {
-    if (_formKey.currentState?.validate() == true &&
-        _fullNameError == null &&
-        _emailError == null &&
+    final formValid = _formKey.currentState?.validate() == true;
+    final pwValid =
         _isPassword8 &&
         _hasUppercase &&
         _hasLowercase &&
         _hasNumber &&
-        _hasSymbol &&
-        _confirmPasswordError == null) {
-      try {
-        await AuthService.instance.register(
-          _fullNameController.text.trim(),
-          _emailController.text.trim(),
-          _passwordController.text,
-        );
-        if (!mounted) return;
-        Navigator.pushReplacementNamed(context, '/connectDrone');
-      } catch (e) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
-      }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please fix the errors before registering')),
-      );
-    }
-  }
+        _hasSymbol;
+    final allValid =
+        formValid &&
+        _fullNameError == null &&
+        _emailError == null &&
+        pwValid &&
+        _confirmPasswordError == null;
 
-  @override
-  void dispose() {
-    _fullNameController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
-    super.dispose();
+    if (!allValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fix the errors before registering'),
+        ),
+      );
+      return;
+    }
+
+    try {
+      await AuthService.instance.register(
+        _fullNameController.text.trim(),
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/connectDrone');
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
   }
 
   @override
@@ -166,10 +187,11 @@ class _RegisterPageState extends State<RegisterPage> {
       onWillPop:
           () => NavigationHelper.onBackPressed(context, NavScreen.register),
       child: Scaffold(
+        backgroundColor: Colors.grey[100],
         appBar: AppBar(
           leading: NavigationHelper.buildBackArrow(context, NavScreen.register),
-          title: GradientText(
-            text: "Register",
+          title: const GradientText(
+            text: 'Register',
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             gradient: LinearGradient(
               colors: [Colors.indigo, Colors.blueAccent],
@@ -178,16 +200,15 @@ class _RegisterPageState extends State<RegisterPage> {
           centerTitle: true,
           backgroundColor: Colors.white,
           elevation: 2,
-          // no logout button on register page
         ),
-        backgroundColor: Colors.grey[100],
         body: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
           child: Form(
             key: _formKey,
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Full Name field.
+                // Full Name field with error display
                 TextFormField(
                   controller: _fullNameController,
                   decoration: InputDecoration(
@@ -196,20 +217,18 @@ class _RegisterPageState extends State<RegisterPage> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    prefixIcon: Icon(Icons.person),
+                    prefixIcon: const Icon(Icons.person),
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty)
                       return 'Please enter your full name';
-                    }
-                    if (value.trim().split(' ').length < 2) {
+                    if (!v.trim().contains(' '))
                       return 'Enter first and last name';
-                    }
                     return null;
                   },
                 ),
-                SizedBox(height: 20),
-                // Email field.
+                const SizedBox(height: 20),
+                // Email field with live error
                 TextFormField(
                   controller: _emailController,
                   decoration: InputDecoration(
@@ -218,11 +237,11 @@ class _RegisterPageState extends State<RegisterPage> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    prefixIcon: Icon(Icons.email),
+                    prefixIcon: const Icon(Icons.email),
                   ),
                 ),
-                SizedBox(height: 20),
-                // Password field.
+                const SizedBox(height: 20),
+                // Password input with toggle
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -231,7 +250,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    prefixIcon: Icon(Icons.lock),
+                    prefixIcon: const Icon(Icons.lock),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword
@@ -239,20 +258,19 @@ class _RegisterPageState extends State<RegisterPage> {
                             : Icons.visibility_off,
                       ),
                       onPressed:
-                          () => setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          }),
+                          () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
                     ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter a password';
-                    }
-                    return null;
-                  },
+                  validator:
+                      (v) =>
+                          (v == null || v.isEmpty)
+                              ? 'Please enter a password'
+                              : null,
                 ),
-                SizedBox(height: 20),
-                // Confirm Password field.
+                const SizedBox(height: 20),
+                // Confirm password field
                 TextFormField(
                   controller: _confirmPasswordController,
                   obscureText: _obscureConfirmPassword,
@@ -262,7 +280,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    prefixIcon: Icon(Icons.lock),
+                    prefixIcon: const Icon(Icons.lock),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscureConfirmPassword
@@ -270,61 +288,54 @@ class _RegisterPageState extends State<RegisterPage> {
                             : Icons.visibility_off,
                       ),
                       onPressed:
-                          () => setState(() {
-                            _obscureConfirmPassword = !_obscureConfirmPassword;
-                          }),
+                          () => setState(
+                            () =>
+                                _obscureConfirmPassword =
+                                    !_obscureConfirmPassword,
+                          ),
                     ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
+                  validator: (v) {
+                    if (v == null || v.isEmpty)
                       return 'Please confirm your password';
-                    }
-                    if (value != _passwordController.text) {
+                    if (v != _passwordController.text)
                       return 'Passwords do not match';
-                    }
                     return null;
                   },
                 ),
-                SizedBox(height: 10),
-                // Real-time password rules.
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildPasswordRule(
-                      passed: _isPassword8,
-                      text: 'At least 8 characters',
-                    ),
-                    _buildPasswordRule(
-                      passed: _hasUppercase,
-                      text: 'At least 1 uppercase letter',
-                    ),
-                    _buildPasswordRule(
-                      passed: _hasLowercase,
-                      text: 'At least 1 lowercase letter',
-                    ),
-                    _buildPasswordRule(
-                      passed: _hasNumber,
-                      text: 'At least 1 number',
-                    ),
-                    _buildPasswordRule(
-                      passed: _hasSymbol,
-                      text: 'At least 1 symbol (!@#\$&*~)',
-                    ),
-                  ],
+                const SizedBox(height: 10),
+                // Live password rule feedback
+                _buildPasswordRule(
+                  passed: _isPassword8,
+                  text: 'At least 8 characters',
                 ),
-                SizedBox(height: 30),
+                _buildPasswordRule(
+                  passed: _hasUppercase,
+                  text: '1 uppercase letter',
+                ),
+                _buildPasswordRule(
+                  passed: _hasLowercase,
+                  text: '1 lowercase letter',
+                ),
+                _buildPasswordRule(passed: _hasNumber, text: '1 number'),
+                _buildPasswordRule(
+                  passed: _hasSymbol,
+                  text: '1 symbol (!@#\$&*~)',
+                ),
+                const SizedBox(height: 30),
+                // Register button
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blueAccent,
                     foregroundColor: Colors.white,
-                    minimumSize: Size(double.infinity, 50),
+                    minimumSize: const Size(double.infinity, 50),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    textStyle: TextStyle(fontSize: 18),
+                    textStyle: const TextStyle(fontSize: 18),
                   ),
                   onPressed: _submitRegistration,
-                  child: Text("Register"),
+                  child: const Text('Register'),
                 ),
               ],
             ),

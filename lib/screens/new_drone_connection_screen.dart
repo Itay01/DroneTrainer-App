@@ -1,11 +1,19 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+// Internal services and widgets
 import '../services/auth_service.dart';
 import '../widgets/gradient_text.dart';
 import '../navigation_helper.dart';
+import '../widgets/loading.dart';
 
+/// Screen for registering and connecting to a new drone.
+///
+/// Provides a form to manually enter drone name and IP, and
+/// displays automatically discovered drones for quick selection.
 class NewDroneConnectionScreen extends StatefulWidget {
+  /// Creates the NewDroneConnection screen widget.
   const NewDroneConnectionScreen({super.key});
 
   @override
@@ -14,24 +22,34 @@ class NewDroneConnectionScreen extends StatefulWidget {
 }
 
 class _NewDroneConnectionScreenState extends State<NewDroneConnectionScreen> {
+  /// Key for form validation.
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
+  /// Controller for the drone name input field.
   final TextEditingController _droneNameController = TextEditingController();
+
+  /// Controller for the IP address input field.
   final TextEditingController _ipController = TextEditingController();
 
-  // Scroll controller for the drone list.
+  /// Scroll controller for the discovered drones list.
   final ScrollController _droneListController = ScrollController();
 
+  /// Whether a connection attempt is in progress.
   bool _isConnecting = false;
+
+  /// Whether the connection attempt has been confirmed.
   bool _isConfirmed = false;
 
-  // For discovered drones.
+  /// List of drones discovered automatically.
   final List<Map<String, String>> _discoveredDrones = [];
+
+  /// Timer to simulate drone discovery.
   Timer? _discoveryTimer;
 
   @override
   void initState() {
     super.initState();
-    // Simulate discovering a new drone after 3 seconds.
+    // Simulate automatic discovery after a delay
     _discoveryTimer = Timer(const Duration(seconds: 3), () {
       setState(() {
         _discoveredDrones.add({'name': 'Drone 1', 'ip': '192.168.1.50'});
@@ -41,6 +59,7 @@ class _NewDroneConnectionScreenState extends State<NewDroneConnectionScreen> {
 
   @override
   void dispose() {
+    // Clean up controllers and timers
     _discoveryTimer?.cancel();
     _droneNameController.dispose();
     _ipController.dispose();
@@ -48,12 +67,12 @@ class _NewDroneConnectionScreenState extends State<NewDroneConnectionScreen> {
     super.dispose();
   }
 
+  /// Handles the connect action when the form is submitted or a discovered
+  /// drone is selected.
   Future<void> _connect() async {
     if (_formKey.currentState?.validate() == true) {
-      // Stop the drone discovery process.
+      // Stop discovery and hide keyboard
       _discoveryTimer?.cancel();
-
-      // Dismiss the keyboard explicitly.
       FocusScope.of(context).unfocus();
       SystemChannels.textInput.invokeMethod('TextInput.hide');
 
@@ -63,17 +82,18 @@ class _NewDroneConnectionScreenState extends State<NewDroneConnectionScreen> {
       });
 
       try {
+        // Register then connect to the drone via AuthService
         await AuthService.instance.registerDrone(
           _droneNameController.text,
           _ipController.text,
         );
         await AuthService.instance.connectDrone(_droneNameController.text);
-        setState(() {
-          _isConfirmed = true;
-        });
+        setState(() => _isConfirmed = true);
+        // Show confirmation before navigating
         await Future.delayed(const Duration(seconds: 1));
         Navigator.pushReplacementNamed(context, '/takeoff');
       } catch (e) {
+        // Show failure message and reset state
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to connect: $e')));
@@ -84,7 +104,7 @@ class _NewDroneConnectionScreenState extends State<NewDroneConnectionScreen> {
     }
   }
 
-  /// When a discovered drone is tapped, auto-fill the form fields.
+  /// Auto-fills the form fields when a discovered drone is tapped.
   void _selectDiscoveredDrone(Map<String, String> drone) {
     setState(() {
       _droneNameController.text = drone['name'] ?? '';
@@ -95,12 +115,13 @@ class _NewDroneConnectionScreenState extends State<NewDroneConnectionScreen> {
   @override
   Widget build(BuildContext context) {
     final int count = _discoveredDrones.length;
-    final double tileHeight = 72.0;
+    const double tileHeight = 72.0;
     final bool isScrollable = count > 3;
     final double containerHeight =
         count > 0 ? (isScrollable ? 3 * tileHeight : count * tileHeight) : 0;
 
     return WillPopScope(
+      // Custom back-button handling
       onWillPop:
           () => NavigationHelper.onBackPressed(
             context,
@@ -113,8 +134,8 @@ class _NewDroneConnectionScreenState extends State<NewDroneConnectionScreen> {
             context,
             NavScreen.newDroneConnection,
           ),
-          title: GradientText(
-            text: "New Drone Connection",
+          title: const GradientText(
+            text: 'New Drone Connection',
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             gradient: LinearGradient(
               colors: [Colors.indigo, Colors.blueAccent],
@@ -146,7 +167,7 @@ class _NewDroneConnectionScreenState extends State<NewDroneConnectionScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Connection Details Form.
+                    // Connection form
                     Form(
                       key: _formKey,
                       child: Column(
@@ -158,7 +179,7 @@ class _NewDroneConnectionScreenState extends State<NewDroneConnectionScreen> {
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              prefixIcon: Icon(Icons.label),
+                              prefixIcon: const Icon(Icons.label),
                             ),
                             validator: (value) {
                               if (value == null || value.trim().isEmpty) {
@@ -175,14 +196,14 @@ class _NewDroneConnectionScreenState extends State<NewDroneConnectionScreen> {
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              prefixIcon: Icon(Icons.router),
+                              prefixIcon: const Icon(Icons.router),
                             ),
                             validator: (value) {
                               if (value == null || value.trim().isEmpty) {
                                 return 'Please enter the IP address';
                               }
                               final ipRegex = RegExp(
-                                r'^(\d{1,3}\.){3}\d{1,3}\$',
+                                r'^(\d{1,3}\.){3}\d{1,3}$',
                               );
                               if (!ipRegex.hasMatch(value.trim())) {
                                 return 'Enter a valid IP address';
@@ -194,41 +215,39 @@ class _NewDroneConnectionScreenState extends State<NewDroneConnectionScreen> {
                       ),
                     ),
                     const SizedBox(height: 30),
-                    // Discovered Drones Section.
-                    Text(
+                    // Automatically discovered drones list
+                    const Text(
                       'Automatically Discovered Drones',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.indigo[900],
+                        color: Colors.indigo,
                       ),
                     ),
                     const SizedBox(height: 10),
-                    // Drone List Container.
                     Container(
                       height: containerHeight,
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
+                        boxShadow: const [
                           BoxShadow(color: Colors.black12, blurRadius: 5),
                         ],
                       ),
                       child:
                           count > 0
+                              // Scrollable list if many drones
                               ? RawScrollbar(
                                 controller: _droneListController,
                                 thumbVisibility: isScrollable,
                                 thickness: 8,
-                                radius: Radius.circular(8),
-                                padding: const EdgeInsets.only(
-                                  top: 12,
-                                  bottom: 12,
+                                radius: const Radius.circular(8),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
                                 ),
                                 child: ListView.builder(
                                   controller: _droneListController,
-                                  shrinkWrap: true,
                                   physics:
                                       isScrollable
                                           ? const AlwaysScrollableScrollPhysics()
@@ -237,7 +256,7 @@ class _NewDroneConnectionScreenState extends State<NewDroneConnectionScreen> {
                                   itemBuilder: (context, index) {
                                     final drone = _discoveredDrones[index];
                                     return ListTile(
-                                      leading: Icon(
+                                      leading: const Icon(
                                         Icons.airplanemode_active,
                                         color: Colors.blueAccent,
                                       ),
@@ -249,23 +268,26 @@ class _NewDroneConnectionScreenState extends State<NewDroneConnectionScreen> {
                                   },
                                 ),
                               )
+                              // Placeholder when none found
                               : const Center(
-                                child: Text("No drones discovered yet"),
+                                child: Text('No drones discovered yet'),
                               ),
                     ),
                     const SizedBox(height: 15),
+                    // Discovery indicator
                     Row(
-                      children: [
-                        const SizedBox(
+                      children: const [
+                        SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         ),
-                        const SizedBox(width: 12),
-                        const Text("Searching for drones..."),
+                        SizedBox(width: 12),
+                        Text('Searching for drones...'),
                       ],
                     ),
                     const SizedBox(height: 30),
+                    // Connect button
                     ElevatedButton(
                       onPressed: _connect,
                       style: ElevatedButton.styleFrom(
@@ -277,43 +299,19 @@ class _NewDroneConnectionScreenState extends State<NewDroneConnectionScreen> {
                         ),
                         textStyle: const TextStyle(fontSize: 22),
                       ),
-                      child: const Text("Connect"),
+                      child: const Text('Connect'),
                     ),
                     const SizedBox(height: 20),
                   ],
                 ),
               ),
             ),
+            // Overlay loading/confirmation during connection
             if (_isConnecting)
               Positioned.fill(
-                child: Container(
-                  color: Colors.black.withOpacity(0.5),
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        !_isConfirmed
-                            ? const CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
-                            )
-                            : const Icon(
-                              Icons.check_circle,
-                              color: Colors.green,
-                              size: 80,
-                            ),
-                        const SizedBox(height: 16),
-                        Text(
-                          !_isConfirmed ? "Connecting" : "Connected",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                child: LoadingWidget(
+                  text: 'Connecting...',
+                  isConfirmed: _isConfirmed,
                 ),
               ),
           ],
