@@ -30,6 +30,16 @@ class _LoginPageState extends State<LoginPage> {
   /// Whether the password text is obscured.
   bool _obscurePassword = true;
 
+  // --- New state for lockout logic ---
+  int _failedAttempts = 0;
+  DateTime? _blockEndTime;
+
+  /// Checks if we are currently in a block period.
+  bool get _isBlocked {
+    if (_blockEndTime == null) return false;
+    return DateTime.now().isBefore(_blockEndTime!);
+  }
+
   @override
   void dispose() {
     // Dispose controllers to free resources
@@ -40,22 +50,82 @@ class _LoginPageState extends State<LoginPage> {
 
   /// Validates form and attempts login via AuthService.
   Future<void> _submitLogin() async {
-    if (_formKey.currentState?.validate() != true) return;
+    final now = DateTime.now();
 
+    // 1) If blocked, show remaining time and bail out
+    if (_isBlocked) {
+      final remaining = _blockEndTime!.difference(now);
+      final minutes = remaining.inMinutes;
+      final seconds = remaining.inSeconds % 60;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Too many failed attempts. '
+            'Please try again in '
+            '${minutes.toString().padLeft(2, '0')}:'
+            '${seconds.toString().padLeft(2, '0')} minutes.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // 2) If the block expired, reset counters
+    if (_blockEndTime != null && now.isAfter(_blockEndTime!)) {
+      setState(() {
+        _blockEndTime = null;
+        _failedAttempts = 0;
+      });
+    }
+
+    // 3) Validate inputs
+    if (_formKey.currentState?.validate() != true) return;
     final email = _emailCtrl.text.trim();
     final pw = _pwCtrl.text;
 
     try {
-      // Perform login API call
+      // Attempt login
       await AuthService.instance.login(email, pw);
+
+      // On success, reset failures and navigate
       if (!mounted) return;
-      // Navigate to connect drone screen on success
+      setState(() {
+        _failedAttempts = 0;
+      });
       Navigator.pushReplacementNamed(context, '/connectDrone');
     } catch (e) {
-      // Show error message on failure
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.toString())));
+      // On failure, bump the counter
+      setState(() {
+        _failedAttempts++;
+      });
+
+      // If that was the 5th failure, start a 2-minute block
+      if (_failedAttempts >= 5) {
+        setState(() {
+          _blockEndTime = DateTime.now().add(const Duration(minutes: 2));
+        });
+        // Schedule automatic reset after 2 minutes
+        Future.delayed(const Duration(minutes: 2), () {
+          if (mounted) {
+            setState(() {
+              _blockEndTime = null;
+              _failedAttempts = 0;
+            });
+          }
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Too many failed attempts. You are blocked for 2 minutes.',
+            ),
+          ),
+        );
+      } else {
+        // Otherwise just show the error
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
     }
   }
 
@@ -87,7 +157,7 @@ class _LoginPageState extends State<LoginPage> {
             key: _formKey,
             child: Column(
               children: [
-                // Email TextFormField
+                // Email field...
                 TextFormField(
                   controller: _emailCtrl,
                   decoration: InputDecoration(
@@ -112,7 +182,7 @@ class _LoginPageState extends State<LoginPage> {
                   },
                 ),
                 const SizedBox(height: 20),
-                // Password TextFormField with show/hide toggle
+                // Password field...
                 TextFormField(
                   controller: _pwCtrl,
                   obscureText: _obscurePassword,
@@ -142,7 +212,7 @@ class _LoginPageState extends State<LoginPage> {
                   },
                 ),
                 const SizedBox(height: 30),
-                // Login button
+                // Login button, disabled when blocked
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.indigo,
@@ -153,7 +223,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     textStyle: const TextStyle(fontSize: 18),
                   ),
-                  onPressed: _submitLogin,
+                  onPressed: _isBlocked ? null : _submitLogin,
                   child: const Text('Login'),
                 ),
               ],
