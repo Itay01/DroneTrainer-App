@@ -7,7 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:web_socket_channel/io.dart';
 
 /// Service URL for secure WebSocket connection.
-const _serverUrl = 'wss://192.168.1.50:8765'; // ⟵ adjust for prod
+const _serverUrl = 'wss://192.168.69.96:8765'; // ⟵ adjust for prod
 
 /// Secure storage for tokens and session IDs.
 const _storage = FlutterSecureStorage();

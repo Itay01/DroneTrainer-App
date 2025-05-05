@@ -358,7 +358,7 @@ class _FlightControlScreenState extends State<FlightControlScreen> {
                   _buildSliderControl(
                     label: 'Height',
                     unit: 'm',
-                    value: _flightHeight != 0.0 ? _flightHeight : 1.0,
+                    value: _flightHeight,
                     min: 1.0,
                     max: 10.0,
                     manualFlag: _isHeightManual,
@@ -484,7 +484,7 @@ class _FlightControlScreenState extends State<FlightControlScreen> {
           children: [
             Expanded(
               child: Slider(
-                value: value,
+                value: value.clamp(min, max),
                 min: min,
                 max: max,
                 divisions: ((max - min) * 10).toInt(),
